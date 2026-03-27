@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lecture Annotation Tool</title>
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- JetBrains Mono -->
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f0f0f;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── IDLE Screen ──────────────────────────────────────────── */
+    #idle-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 24px;
+    }
+    #idle-screen.hidden { display: none; }
+
+    #drop-zone {
+      width: 480px;
+      height: 280px;
+      border: 2px dashed #444;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: #3B82F6;
+      background: rgba(59, 130, 246, 0.05);
+    }
+    #drop-zone .icon { font-size: 48px; }
+    #drop-zone .label { font-size: 14px; color: #888; }
+    #drop-zone .sub   { font-size: 12px; color: #555; }
+
+    #file-input { display: none; }
+
+    #vibe-footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 20px;
+      text-align: center;
+      border-top: 1px solid #1e1e1e;
+    }
+    #vibe-footer p   { font-size: 12px; color: #555; margin-bottom: 6px; }
+    #vibe-footer a   { font-size: 13px; color: #0891B2; text-decoration: none; }
+    #vibe-footer a:hover { color: #0E7490; }
+    #vibe-footer .sub { font-size: 11px; color: #3a3a3a; margin-top: 4px; }
+
+    /* ── Loading Overlay ──────────────────────────────────────── */
+    #loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+    #loading-overlay.visible { display: flex; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #333;
+      border-top-color: #3B82F6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-overlay p { font-size: 14px; color: #888; }
+
+    /* ── PRESENTING Layout ────────────────────────────────────── */
+    #app {
+      display: none;
+      height: 100vh;
+      flex-direction: column;
+    }
+    #app.visible { display: flex; }
+
+    #main-area {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Canvas wrapper */
+    #canvas-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    #pdf-layer, #draw-layer {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #draw-layer { cursor: crosshair; }
+
+    /* ── Toolbar ──────────────────────────────────────────────── */
+    #toolbar {
+      width: 56px;
+      background: rgba(20,20,20,0.85);
+      backdrop-filter: blur(8px);
+      border-left: 1px solid #222;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 4px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    .toolbar-sep {
+      width: 32px;
+      height: 1px;
+      background: #333;
+      margin: 6px 0;
+    }
+    .tool-btn {
+      width: 40px; height: 40px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #aaa;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .tool-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
+    .tool-btn.active {
+      border-color: #fff;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      box-shadow: 0 0 8px rgba(255,255,255,0.15);
+    }
+    .color-btn {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    .color-btn:hover  { transform: scale(1.1); }
+    .color-btn.active { border-color: #fff; transform: scale(1.1); }
+
+    /* Thickness slider */
+    #thickness-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 0;
+    }
+    #thickness-wrap label { font-size: 9px; color: #555; }
+    #thickness-slider {
+      -webkit-appearance: none;
+      writing-mode: vertical-lr;
+      direction: rtl;
+      width: 6px;
+      height: 72px;
+      background: #333;
+      border-radius: 3px;
+      cursor: pointer;
+      outline: none;
+    }
+    #thickness-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      background: #fff;
+      border-radius: 50%;
+    }
+
+    .clear-btn {
+      width: 40px; height: 40px;
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #888;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .clear-btn:hover { background: rgba(255,80,80,0.15); color: #ff5050; border-color: #ff5050; }
+
+    #clear-all-btn {
+      width: 40px; height: 40px;
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #888;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #clear-all-btn:hover { background: rgba(255,80,80,0.15); color: #ff5050; border-color: #ff5050; }
+
+    /* ── Bottom Controls ──────────────────────────────────────── */
+    #bottom-bar {
+      height: 44px;
+      background: rgba(15,15,15,0.95);
+      border-top: 1px solid #222;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 0 16px;
+    }
+    .nav-btn {
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #888;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .nav-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
+    .nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+    #page-counter {
+      font-size: 13px;
+      color: #888;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      min-width: 80px;
+      text-align: center;
+      transition: border-color 0.15s;
+    }
+    #page-counter:hover { border-color: #444; color: #fff; }
+
+    #page-input {
+      display: none;
+      width: 80px;
+      background: #1a1a1a;
+      border: 1px solid #3B82F6;
+      border-radius: 4px;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      text-align: center;
+      padding: 2px 6px;
+      outline: none;
+    }
+
+    #save-png-btn {
+      background: transparent;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #888;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    #save-png-btn:hover { background: rgba(59,130,246,0.15); color: #3B82F6; border-color: #3B82F6; }
+
+    #present-btn {
+      background: rgba(59,130,246,0.15);
+      border: 1px solid #3B82F6;
+      border-radius: 6px;
+      color: #3B82F6;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      padding: 4px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.15s, color 0.15s;
+    }
+    #present-btn:hover { background: rgba(59,130,246,0.35); color: #fff; }
+    body.presentation #present-btn {
+      background: rgba(255,255,255,0.15);
+      border-color: #fff;
+      color: #fff;
+    }
+
+    /* ── Presentation Mode ───────────────────────────────────── */
+    /* 전체화면: app이 뷰포트 전체를 채움 */
+    body.presentation #app {
+      position: fixed;
+      inset: 0;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* 전체화면: canvas-wrapper가 하단바 높이 제외하고 전체 차지 */
+    body.presentation #main-area {
+      height: calc(100vh - 44px);
+    }
+
+    /* 전체화면: 툴바를 오른쪽에 고정 오버레이로 표시 */
+    body.presentation #toolbar {
+      position: fixed;
+      right: 0;
+      top: 0;
+      height: calc(100vh - 44px);
+      z-index: 50;
+      box-shadow: -4px 0 16px rgba(0,0,0,0.6);
+      border-left: 1px solid #333;
+    }
+
+    /* 전체화면: 하단바 하단 고정 */
+    body.presentation #bottom-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 50;
+    }
+
+    body.presentation #canvas-wrapper { background: #000; }
+
+    /* 오버레이 이전/다음 버튼 */
+    .overlay-nav {
+      position: fixed;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 200;
+      width: 52px;
+      height: 100px;
+      background: rgba(0,0,0,0.3);
+      border: none;
+      color: rgba(255,255,255,0.5);
+      font-size: 28px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: background 0.2s, color 0.2s;
+    }
+    .overlay-nav:hover { background: rgba(0,0,0,0.65); color: #fff; }
+    .overlay-nav:disabled { opacity: 0.1; cursor: default; }
+    #overlay-prev { left: 8px; }
+    #overlay-next { right: 8px; }
+    /* 오버레이 nav는 사용하지 않음 — 하단바 버튼으로 대체 */
+
+    /* ESC 힌트 */
+    #esc-hint {
+      position: fixed;
+      top: 12px; right: 14px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.25);
+      pointer-events: none;
+      z-index: 200;
+      display: none;
+    }
+    body.presentation #esc-hint { display: block; }
+
+    /* ── Toast ────────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 60px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(30,30,30,0.95);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 13px;
+      color: #fff;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    #toast.error { border-color: #ff5050; color: #ff9090; }
+  </style>
+</head>
+<body>
+
+<!-- ── IDLE Screen ──────────────────────────────────── -->
+<div id="idle-screen">
+  <div id="drop-zone">
+    <div class="icon">📄</div>
+    <div class="label">PDF 파일을 드래그하거나 클릭해서 선택하세요</div>
+    <div class="sub">강의 슬라이드 PDF를 불러옵니다</div>
+  </div>
+  <input type="file" id="file-input" accept=".pdf" />
+
+  <footer id="vibe-footer">
+    <p>더 많은 앱을 활용하거나 만들고 싶으면</p>
+    <a href="https://www.vibecodinglab.ai.kr/" target="_blank" rel="noopener noreferrer">
+      🚀 바이브코딩랩 방문하기
+    </a>
+    <p class="sub">vibecodinglab.ai.kr</p>
+  </footer>
+</div>
+
+<!-- ── Loading Overlay ──────────────────────────────── -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <p>PDF 로딩 중...</p>
+</div>
+
+<!-- ── PRESENTING App ────────────────────────────────── -->
+<div id="app">
+  <div id="main-area">
+
+    <!-- Canvas Area -->
+    <div id="canvas-wrapper">
+      <canvas id="pdf-layer"></canvas>
+      <canvas id="draw-layer"></canvas>
+    </div>
+
+    <!-- 전체보기 중 오버레이 이전/다음 버튼 -->
+    <button class="overlay-nav" id="overlay-prev" title="이전 슬라이드">&#8249;</button>
+    <button class="overlay-nav" id="overlay-next" title="다음 슬라이드">&#8250;</button>
+    <!-- ESC 종료 힌트 -->
+    <div id="esc-hint">ESC — 전체보기 종료</div>
+
+    <!-- Toolbar -->
+    <div id="toolbar">
+      <!-- 도구 7개 -->
+      <button class="tool-btn active" data-tool="pen"       title="펜 (1)">✏️</button>
+      <button class="tool-btn"        data-tool="arrow"     title="화살표 (2)">➡️</button>
+      <button class="tool-btn"        data-tool="circle"    title="동그라미 (3)">⭕</button>
+      <button class="tool-btn"        data-tool="rect"      title="네모 (4)">⬜</button>
+      <button class="tool-btn"        data-tool="text"      title="텍스트 (5)">T</button>
+      <button class="tool-btn"        data-tool="highlight" title="형광펜 (6)">▬</button>
+      <button class="tool-btn"        data-tool="eraser"    title="지우개 (7)">◻</button>
+      <button id="clear-all-btn" title="현재 슬라이드 전체 지우기">🗑</button>
+
+      <div class="toolbar-sep"></div>
+
+      <!-- 색상 4개 -->
+      <button class="color-btn active" data-color="red"    style="background:#FF3333" title="레드"></button>
+      <button class="color-btn"        data-color="yellow" style="background:#FFE033" title="옐로우"></button>
+      <button class="color-btn"        data-color="lime"   style="background:#84CC16" title="라임그린"></button>
+      <button class="color-btn"        data-color="blue"   style="background:#3B82F6" title="블루"></button>
+
+      <div class="toolbar-sep"></div>
+
+      <!-- 두께 슬라이더 -->
+      <div id="thickness-wrap">
+        <label>굵기</label>
+        <input type="range" id="thickness-slider" min="1" max="30" value="4" />
+      </div>
+
+      <div class="toolbar-sep"></div>
+
+      <!-- 초기화 -->
+      <button class="clear-btn" id="clear-btn" title="현재 슬라이드 초기화 (Esc)">✕</button>
+    </div>
+
+  </div>
+
+  <!-- Bottom Controls -->
+  <div id="bottom-bar">
+    <button class="nav-btn" id="prev-btn">← PREV</button>
+    <span id="page-counter">1 / 1</span>
+    <input id="page-input" type="number" min="1" />
+    <button class="nav-btn" id="next-btn">NEXT →</button>
+    <button id="present-btn" title="전체보기">⤢ 전체보기</button>
+    <button id="save-png-btn">💾 PNG 저장</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// PDF.js 워커 설정
+// ══════════════════════════════════════════════════════════
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ══════════════════════════════════════════════════════════
+// AppState
+// ══════════════════════════════════════════════════════════
+const STORAGE_KEYS = { tool: 'lat_tool', color: 'lat_color', width: 'lat_width' };
+const COLOR_MAP = { red: '#FF3333', yellow: '#FFE033', lime: '#84CC16', blue: '#3B82F6' };
+
+const state = {
+  pdf: null,
+  totalPages: 0,
+  currentPage: 1,
+  activeTool:  localStorage.getItem(STORAGE_KEYS.tool)  || 'pen',
+  activeColor: localStorage.getItem(STORAGE_KEYS.color) || 'red',
+  lineWidth:   Number(localStorage.getItem(STORAGE_KEYS.width)) || 4,
+  isDrawing: false,
+  strokes: {},          // { [pageNum]: Stroke[] }
+  renderedPages: {},    // { [pageNum]: ImageData } — eager 렌더링 캐시
+  previewStroke: null,  // 드래그 중 미리보기용
+};
+
+// ══════════════════════════════════════════════════════════
+// DOM refs
+// ══════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const idleScreen     = $('idle-screen');
+const loadingOverlay = $('loading-overlay');
+const appEl          = $('app');
+const dropZone       = $('drop-zone');
+const fileInput      = $('file-input');
+const pdfCanvas      = $('pdf-layer');
+const drawCanvas     = $('draw-layer');
+const toolbar        = $('toolbar');
+const clearBtn       = $('clear-btn');
+const prevBtn        = $('prev-btn');
+const nextBtn        = $('next-btn');
+const pageCounter    = $('page-counter');
+const pageInput      = $('page-input');
+const savePngBtn     = $('save-png-btn');
+const presentBtn     = $('present-btn');
+const overlayPrev    = $('overlay-prev');
+const overlayNext    = $('overlay-next');
+const thicknessSlider = $('thickness-slider');
+const toastEl        = $('toast');
+
+const pdfCtx  = pdfCanvas.getContext('2d');
+const drawCtx = drawCanvas.getContext('2d');
+
+// ══════════════════════════════════════════════════════════
+// StrokeStore
+// ══════════════════════════════════════════════════════════
+const StrokeStore = {
+  get(page)       { return state.strokes[page] || []; },
+  add(page, s)    { if (!state.strokes[page]) state.strokes[page] = []; state.strokes[page].push(s); },
+  clear(page)     { state.strokes[page] = []; },
+  clearAll()      { state.strokes = {}; },
+};
+
+// ══════════════════════════════════════════════════════════
+// 좌표 정규화
+// ══════════════════════════════════════════════════════════
+const nPt  = (x, y) => ({ x: x / drawCanvas.width,  y: y / drawCanvas.height });
+const dPt  = (nx, ny) => ({ x: nx * drawCanvas.width, y: ny * drawCanvas.height });
+const nW   = w => w / drawCanvas.width;
+const dW   = nw => nw * drawCanvas.width;
+
+// ══════════════════════════════════════════════════════════
+// Toast
+// ══════════════════════════════════════════════════════════
+let toastTimer = null;
+function showToast(msg, isError = false) {
+  toastEl.textContent = msg;
+  toastEl.className = 'show' + (isError ? ' error' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.className = ''; }, 2800);
+}
+
+// ══════════════════════════════════════════════════════════
+// PDFRenderer
+// ══════════════════════════════════════════════════════════
+const PDFRenderer = {
+  async load(file) {
+    loadingOverlay.classList.add('visible');
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({
+        data: arrayBuffer,
+        onPassword: (updatePassword, reason) => {
+          const pwd = prompt(reason === 2 ? '잘못된 비밀번호입니다. 다시 입력하세요:' : 'PDF 비밀번호를 입력하세요:');
+          if (pwd !== null) updatePassword(pwd);
+        },
+      }).promise;
+
+      state.pdf = pdf;
+      state.totalPages = pdf.numPages;
+      state.currentPage = 1;
+      state.renderedPages = {};
+      StrokeStore.clearAll();
+
+      // Eager 렌더링 — 전체 페이지 미리 렌더
+      await this.renderAllPages();
+
+      this.showPage(1);
+      loadingOverlay.classList.remove('visible');
+      idleScreen.classList.add('hidden');
+      appEl.classList.add('visible');
+      ToolController.init();
+    } catch (e) {
+      loadingOverlay.classList.remove('visible');
+      console.error(e);
+      showToast('PDF 로딩 실패: ' + e.message, true);
+    }
+  },
+
+  async renderAllPages() {
+    const toolbarW = document.body.classList.contains('presentation') ? 56 : 56;
+    const bottomH  = 44;
+    const viewport0 = (await state.pdf.getPage(1)).getViewport({ scale: 1 });
+    const scale = Math.min(
+      (window.innerWidth  - toolbarW) / viewport0.width,
+      (window.innerHeight - bottomH)  / viewport0.height
+    );
+
+    for (let i = 1; i <= state.totalPages; i++) {
+      const page = await state.pdf.getPage(i);
+      const vp   = page.getViewport({ scale });
+      const tmp  = document.createElement('canvas');
+      tmp.width  = vp.width;
+      tmp.height = vp.height;
+      await page.render({ canvasContext: tmp.getContext('2d'), viewport: vp }).promise;
+      state.renderedPages[i] = { canvas: tmp, width: vp.width, height: vp.height };
+    }
+  },
+
+  showPage(pageNum) {
+    const cached = state.renderedPages[pageNum];
+    if (!cached) return;
+
+    pdfCanvas.width  = cached.width;
+    pdfCanvas.height = cached.height;
+    drawCanvas.width  = cached.width;
+    drawCanvas.height = cached.height;
+
+    pdfCtx.drawImage(cached.canvas, 0, 0);
+    CanvasManager.redraw();
+    updatePageUI();
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// CanvasManager — 재렌더링 & 스트로크 그리기
+// ══════════════════════════════════════════════════════════
+const CanvasManager = {
+  redraw(preview = null) {
+    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    const strokes = StrokeStore.get(state.currentPage);
+    for (const s of strokes) this.drawStroke(s);
+    if (preview) this.drawStroke(preview);
+  },
+
+  drawStroke(s) {
+    drawCtx.save();
+    const color = s.color;
+    const lw    = dW(s.lineWidth);
+
+    switch (s.type) {
+      case 'pen':
+      case 'highlight': {
+        if (s.points.length < 2) break;
+        drawCtx.globalAlpha     = s.type === 'highlight' ? 0.35 : 1;
+        drawCtx.strokeStyle     = color;
+        drawCtx.lineWidth       = s.type === 'highlight' ? lw * 4 : lw;
+        drawCtx.lineCap         = 'round';
+        drawCtx.lineJoin        = 'round';
+        drawCtx.beginPath();
+        const p0 = dPt(s.points[0].x, s.points[0].y);
+        drawCtx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < s.points.length; i++) {
+          const p = dPt(s.points[i].x, s.points[i].y);
+          drawCtx.lineTo(p.x, p.y);
+        }
+        drawCtx.stroke();
+        break;
+      }
+      case 'arrow': {
+        const { x: x1, y: y1 } = dPt(s.start.x, s.start.y);
+        const { x: x2, y: y2 } = dPt(s.end.x,   s.end.y);
+        drawArrow(drawCtx, x1, y1, x2, y2, color, lw);
+        break;
+      }
+      case 'circle': {
+        const { x: x1, y: y1 } = dPt(s.start.x, s.start.y);
+        const { x: x2, y: y2 } = dPt(s.end.x,   s.end.y);
+        drawCtx.strokeStyle = color;
+        drawCtx.lineWidth   = lw;
+        const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+        const rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
+        drawCtx.beginPath();
+        drawCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        drawCtx.stroke();
+        break;
+      }
+      case 'rect': {
+        const { x: x1, y: y1 } = dPt(s.start.x, s.start.y);
+        const { x: x2, y: y2 } = dPt(s.end.x,   s.end.y);
+        drawCtx.strokeStyle = color;
+        drawCtx.lineWidth   = lw;
+        drawCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        break;
+      }
+      case 'text': {
+        const { x, y } = dPt(s.start.x, s.start.y);
+        const fontSize = Math.round(drawCanvas.height * 0.03);
+        drawCtx.fillStyle = color;
+        drawCtx.font      = `${fontSize}px 'JetBrains Mono', monospace`;
+        drawCtx.fillText(s.text, x, y);
+        break;
+      }
+      case 'eraser': {
+        drawCtx.globalCompositeOperation = 'destination-out';
+        drawCtx.lineWidth  = dW(s.lineWidth) * 5;
+        drawCtx.lineCap    = 'round';
+        drawCtx.lineJoin   = 'round';
+        drawCtx.beginPath();
+        if (s.points.length > 0) {
+          const p0 = dPt(s.points[0].x, s.points[0].y);
+          drawCtx.moveTo(p0.x, p0.y);
+          for (let i = 1; i < s.points.length; i++) {
+            const p = dPt(s.points[i].x, s.points[i].y);
+            drawCtx.lineTo(p.x, p.y);
+          }
+        }
+        drawCtx.stroke();
+        break;
+      }
+    }
+    drawCtx.restore();
+  },
+};
+
+// 화살표 그리기 헬퍼
+function drawArrow(ctx, x1, y1, x2, y2, color, lw) {
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const headLen = Math.max(lw * 4, 14);
+
+  ctx.strokeStyle = color;
+  ctx.fillStyle   = color;
+  ctx.lineWidth   = lw;
+  ctx.lineCap     = 'round';
+
+  // 선
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+
+  // 채운 삼각형 화살촉
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 6),
+             y2 - headLen * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 6),
+             y2 - headLen * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ══════════════════════════════════════════════════════════
+// ToolController
+// ══════════════════════════════════════════════════════════
+const ToolController = {
+  init() {
+    this.applyTool(state.activeTool);
+    this.applyColor(state.activeColor);
+    thicknessSlider.value = state.lineWidth;
+
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.applyTool(btn.dataset.tool));
+    });
+    document.querySelectorAll('.color-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.applyColor(btn.dataset.color));
+    });
+    thicknessSlider.addEventListener('input', () => {
+      state.lineWidth = Number(thicknessSlider.value);
+      localStorage.setItem(STORAGE_KEYS.width, state.lineWidth);
+    });
+  },
+
+  applyTool(tool) {
+    state.activeTool = tool;
+    localStorage.setItem(STORAGE_KEYS.tool, tool);
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+    // 커서
+    if (tool === 'text')   drawCanvas.style.cursor = 'text';
+    else if (tool === 'eraser') drawCanvas.style.cursor = 'cell';
+    else                   drawCanvas.style.cursor = 'crosshair';
+  },
+
+  applyColor(color) {
+    state.activeColor = color;
+    localStorage.setItem(STORAGE_KEYS.color, color);
+    document.querySelectorAll('.color-btn').forEach(b => b.classList.toggle('active', b.dataset.color === color));
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// Drawing Events
+// ══════════════════════════════════════════════════════════
+let currentStroke = null;
+
+function getCanvasPos(e) {
+  const rect = drawCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (drawCanvas.width  / rect.width),
+    y: (e.clientY - rect.top)  * (drawCanvas.height / rect.height),
+  };
+}
+
+function isInsideCanvas(e) {
+  const rect = drawCanvas.getBoundingClientRect();
+  return e.clientX >= rect.left && e.clientX <= rect.right &&
+         e.clientY >= rect.top  && e.clientY <= rect.bottom;
+}
+
+drawCanvas.addEventListener('mousedown', e => {
+  if (!isInsideCanvas(e)) return;
+  const pos = getCanvasPos(e);
+  const np  = nPt(pos.x, pos.y);
+
+  if (state.activeTool === 'text') {
+    showTextInput(pos.x, pos.y);
+    return;
+  }
+
+  state.isDrawing = true;
+  const color = COLOR_MAP[state.activeColor] || state.activeColor;
+  const lw    = nW(state.lineWidth);
+
+  currentStroke = {
+    type:      state.activeTool,
+    color,
+    points:    [np],
+    start:     np,
+    end:       np,
+    lineWidth: lw,
+  };
+});
+
+drawCanvas.addEventListener('mousemove', e => {
+  if (!state.isDrawing || !currentStroke) return;
+  const pos = getCanvasPos(e);
+  const np  = nPt(pos.x, pos.y);
+
+  if (currentStroke.type === 'pen' || currentStroke.type === 'highlight' || currentStroke.type === 'eraser') {
+    currentStroke.points.push(np);
+    CanvasManager.redraw(currentStroke);
+  } else {
+    // 실시간 미리보기 (화살표, 동그라미, 네모)
+    currentStroke.end = np;
+    CanvasManager.redraw(currentStroke);
+  }
+});
+
+drawCanvas.addEventListener('mouseup', e => {
+  if (!state.isDrawing || !currentStroke) return;
+  state.isDrawing = false;
+
+  const pos = getCanvasPos(e);
+  const np  = nPt(pos.x, pos.y);
+  currentStroke.end = np;
+
+  StrokeStore.add(state.currentPage, { ...currentStroke });
+  CanvasManager.redraw();
+  currentStroke = null;
+});
+
+drawCanvas.addEventListener('mouseleave', e => {
+  if (state.isDrawing && currentStroke) {
+    StrokeStore.add(state.currentPage, { ...currentStroke });
+    CanvasManager.redraw();
+    state.isDrawing = false;
+    currentStroke = null;
+  }
+});
+
+// ── 텍스트 입력 ─────────────────────────────────────────
+function showTextInput(x, y) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  const rect = drawCanvas.getBoundingClientRect();
+  const scaleX = rect.width  / drawCanvas.width;
+  const scaleY = rect.height / drawCanvas.height;
+
+  Object.assign(input.style, {
+    position: 'fixed',
+    left:   (rect.left + x * scaleX) + 'px',
+    top:    (rect.top  + y * scaleY - 14) + 'px',
+    background: 'transparent',
+    border: 'none',
+    borderBottom: '1px solid rgba(255,255,255,0.4)',
+    outline: 'none',
+    color: COLOR_MAP[state.activeColor] || state.activeColor,
+    font: `${Math.round(drawCanvas.height * 0.03 * scaleY)}px 'JetBrains Mono', monospace`,
+    zIndex: 500,
+    minWidth: '80px',
+  });
+  document.body.appendChild(input);
+  input.focus();
+
+  const confirm = () => {
+    const txt = input.value.trim();
+    if (txt) {
+      StrokeStore.add(state.currentPage, {
+        type: 'text',
+        color: COLOR_MAP[state.activeColor] || state.activeColor,
+        points: [],
+        start: nPt(x, y),
+        end:   nPt(x, y),
+        text:  txt,
+        lineWidth: nW(state.lineWidth),
+      });
+      CanvasManager.redraw();
+    }
+    input.remove();
+  };
+
+  input.addEventListener('blur', confirm);
+  input.addEventListener('keydown', e => {
+    e.stopPropagation(); // 내비게이션 키 차단
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { input.removeEventListener('blur', confirm); input.remove(); }
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// 슬라이드 이동
+// ══════════════════════════════════════════════════════════
+function goToPage(n) {
+  if (!state.pdf) return;
+  const p = Math.max(1, Math.min(n, state.totalPages));
+  state.currentPage = p;
+  PDFRenderer.showPage(p);
+}
+
+function updatePageUI() {
+  pageCounter.textContent = `${state.currentPage} / ${state.totalPages}`;
+  pageInput.max = state.totalPages;
+  pageInput.value = state.currentPage;
+  prevBtn.disabled = state.currentPage <= 1;
+  nextBtn.disabled = state.currentPage >= state.totalPages;
+  overlayPrev.disabled = state.currentPage <= 1;
+  overlayNext.disabled = state.currentPage >= state.totalPages;
+}
+
+prevBtn.addEventListener('click', () => goToPage(state.currentPage - 1));
+nextBtn.addEventListener('click', () => goToPage(state.currentPage + 1));
+
+// 페이지 직접 입력
+pageCounter.addEventListener('click', () => {
+  pageCounter.style.display = 'none';
+  pageInput.style.display = 'block';
+  pageInput.value = state.currentPage;
+  pageInput.select();
+  pageInput.focus();
+});
+pageInput.addEventListener('blur', () => {
+  pageCounter.style.display = '';
+  pageInput.style.display = 'none';
+});
+pageInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') {
+    const v = parseInt(pageInput.value);
+    if (!isNaN(v)) goToPage(v);
+    pageInput.blur();
+  }
+  if (e.key === 'Escape') pageInput.blur();
+});
+
+// ══════════════════════════════════════════════════════════
+// Clear & PNG Save
+// ══════════════════════════════════════════════════════════
+clearBtn.addEventListener('click', () => {
+  StrokeStore.clear(state.currentPage);
+  CanvasManager.redraw();
+});
+
+$('clear-all-btn').addEventListener('click', () => {
+  StrokeStore.clear(state.currentPage);
+  CanvasManager.redraw();
+});
+
+// ══════════════════════════════════════════════════════════
+// 전체보기 (Presentation Mode)
+// ══════════════════════════════════════════════════════════
+function enterPresentationMode() {
+  document.body.classList.add('presentation');
+  presentBtn.textContent = '✕ 전체보기 종료';
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+  if (req) req.call(el).catch(() => {});
+}
+
+function exitPresentationMode() {
+  document.body.classList.remove('presentation');
+  presentBtn.textContent = '⤢ 전체보기';
+  const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+  if (exit && document.fullscreenElement) exit.call(document).catch(() => {});
+}
+
+function updateOverlayNav() {
+  overlayPrev.disabled = state.currentPage <= 1;
+  overlayNext.disabled = state.currentPage >= state.totalPages;
+}
+
+presentBtn.addEventListener('click', () => {
+  document.body.classList.contains('presentation') ? exitPresentationMode() : enterPresentationMode();
+});
+overlayPrev.addEventListener('click', () => { goToPage(state.currentPage - 1); updateOverlayNav(); });
+overlayNext.addEventListener('click', () => { goToPage(state.currentPage + 1); updateOverlayNav(); });
+
+// 브라우저 자체 ESC로 풀스크린 해제 시 presentation 클래스도 제거
+['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(ev => {
+  document.addEventListener(ev, async () => {
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+    if (!isFs) {
+      document.body.classList.remove('presentation');
+      presentBtn.textContent = '⤢ 전체보기';
+    }
+    // 뷰포트 크기 변경에 맞게 전체 페이지 재렌더링
+    if (state.pdf) {
+      await PDFRenderer.renderAllPages();
+      PDFRenderer.showPage(state.currentPage);
+    }
+  });
+});
+
+savePngBtn.addEventListener('click', () => {
+  const off = document.createElement('canvas');
+  off.width  = pdfCanvas.width;
+  off.height = pdfCanvas.height;
+  const ctx  = off.getContext('2d');
+  ctx.drawImage(pdfCanvas, 0, 0);
+  ctx.drawImage(drawCanvas, 0, 0);
+  const a   = document.createElement('a');
+  a.download = `slide-${state.currentPage}.png`;
+  a.href     = off.toDataURL('image/png');
+  a.click();
+});
+
+// ══════════════════════════════════════════════════════════
+// KeyboardHandler
+// ══════════════════════════════════════════════════════════
+const KeyboardHandler = {
+  init() {
+    document.addEventListener('keydown', e => {
+      // 텍스트 input 포커스 중이면 내비게이션 무시 (input 자체에서 stopPropagation)
+      if (e.target.tagName === 'INPUT') return;
+      switch (e.key) {
+        case 'ArrowLeft':  goToPage(state.currentPage - 1); break;
+        case 'ArrowRight': goToPage(state.currentPage + 1); break;
+        case 'Escape':
+          if (document.body.classList.contains('presentation')) {
+            exitPresentationMode();
+          } else {
+            StrokeStore.clear(state.currentPage);
+            CanvasManager.redraw();
+          }
+          break;
+        case '1': ToolController.applyTool('pen');       break;
+        case '2': ToolController.applyTool('arrow');     break;
+        case '3': ToolController.applyTool('circle');    break;
+        case '4': ToolController.applyTool('rect');      break;
+        case '5': ToolController.applyTool('text');      break;
+        case '6': ToolController.applyTool('highlight'); break;
+        case '7': ToolController.applyTool('eraser');    break;
+        case 'f': case 'F':
+          document.fullscreenElement
+            ? document.exitFullscreen()
+            : document.documentElement.requestFullscreen();
+          break;
+      }
+    });
+
+    // 전체화면 변경 시 캔버스 리사이즈
+    document.addEventListener('fullscreenchange', () => {
+      if (state.pdf) PDFRenderer.showPage(state.currentPage);
+    });
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// FileHandler
+// ══════════════════════════════════════════════════════════
+const FileHandler = {
+  init() {
+    dropZone.addEventListener('click',  () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+      if (e.target.files[0]) this.load(e.target.files[0]);
+    });
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault(); dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault(); dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) this.load(file);
+    });
+
+    // PRESENTING 모드에서도 드롭 가능 (새 PDF 교체)
+    document.addEventListener('dragover', e => e.preventDefault());
+    document.addEventListener('drop', e => {
+      e.preventDefault();
+      if (!appEl.classList.contains('visible')) return;
+      const file = e.dataTransfer.files[0];
+      if (file) this.load(file);
+    });
+  },
+
+  load(file) {
+    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
+      showToast('PDF 파일만 지원합니다.', true);
+      return;
+    }
+    PDFRenderer.load(file);
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════════
+FileHandler.init();
+KeyboardHandler.init();
+</script>
+</body>
+</html>
