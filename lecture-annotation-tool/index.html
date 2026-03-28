@@ -9,18 +9,154 @@
   <!-- JetBrains Mono -->
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
-    /* ── Reset & Base ─────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ══════════════════════════════════════════════════════════
+       CSS 테마 변수 — Linear 스타일 라이트 / 다크
+       ══════════════════════════════════════════════════════════ */
+    :root {
+      /* Light (기본) */
+      --bg:                #f7f7f5;
+      --surface:           #ffffff;
+      --surface2:          #f0f0ee;
+      --surface3:          #e8e8e5;
+      --border:            #e4e4e0;
+      --border2:           #c8c8c4;
+      --text:              #0d0d0c;
+      --text-muted:        #5a5a57;
+      --text-dim:          #9b9b97;
+      --toolbar-bg:        rgba(252,252,250,0.94);
+      --bar-bg:            rgba(248,248,246,0.98);
+      --canvas-bg:         #ddddd8;
+      --input-bg:          #f4f4f2;
+      --modal-bg:          #ffffff;
+      --modal-overlay:     rgba(0,0,0,0.30);
+      --loader-overlay:    rgba(255,255,255,0.92);
+      --spinner-track:     #dededa;
+      --tool-hover:        rgba(0,0,0,0.055);
+      --tool-active-border:#0d0d0c;
+      --tool-active-bg:    rgba(0,0,0,0.07);
+      --tool-active-shadow:rgba(0,0,0,0.08);
+      --slider-track:      #d0d0cc;
+      --slider-thumb:      #0d0d0c;
+      --toast-bg:          rgba(20,20,18,0.94);
+      --toast-border:      #383836;
+      --toast-text:        #ffffff;
+      --code-bg:           #efefec;
+      --code-text:         #3a7200;
+      --footer-border:     #e4e4e0;
+      --footer-bg:         #f7f7f5;
+    }
+
+    [data-theme="dark"] {
+      /* Dark */
+      --bg:                #0f0f0f;
+      --surface:           #1a1a1a;
+      --surface2:          #242424;
+      --surface3:          #2e2e2e;
+      --border:            #232323;
+      --border2:           #343434;
+      --text:              #f0f0ee;
+      --text-muted:        #888884;
+      --text-dim:          #55554f;
+      --toolbar-bg:        rgba(18,18,18,0.88);
+      --bar-bg:            rgba(12,12,12,0.96);
+      --canvas-bg:         #111111;
+      --input-bg:          #1a1a1a;
+      --modal-bg:          #1c1c1c;
+      --modal-overlay:     rgba(0,0,0,0.78);
+      --loader-overlay:    rgba(0,0,0,0.86);
+      --spinner-track:     #2e2e2e;
+      --tool-hover:        rgba(255,255,255,0.07);
+      --tool-active-border:#e8e8e4;
+      --tool-active-bg:    rgba(255,255,255,0.10);
+      --tool-active-shadow:rgba(255,255,255,0.12);
+      --slider-track:      #303030;
+      --slider-thumb:      #e8e8e4;
+      --toast-bg:          rgba(28,28,28,0.96);
+      --toast-border:      #404040;
+      --toast-text:        #f0f0ee;
+      --code-bg:           #111111;
+      --code-text:         #84CC16;
+      --footer-border:     #1e1e1e;
+      --footer-bg:         #0f0f0f;
+    }
+
+    /* ── 테마 전환 애니메이션 ────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0; padding: 0;
+      transition: background-color 0.22s ease, border-color 0.22s ease,
+                  color 0.22s ease, box-shadow 0.22s ease;
+    }
+    /* 애니메이션 제외 (성능) */
+    canvas, .spinner, #thickness-slider { transition: none !important; }
+
+    /* ── Reset & Base ──────────────────────────────────────── */
     body {
-      background: #0f0f0f;
-      color: #fff;
+      background: var(--bg);
+      color: var(--text);
       font-family: 'JetBrains Mono', monospace;
       height: 100vh;
       overflow: hidden;
       user-select: none;
     }
 
-    /* ── IDLE Screen ──────────────────────────────────────────── */
+    /* ── Theme Toggle Button ───────────────────────────────── */
+    /* 테마 토글 — 툴바 내 버튼 (고정 위치 제거) */
+    #theme-toggle {
+      width: 40px; height: 40px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #theme-toggle:hover { background: var(--tool-hover); color: var(--text); }
+
+    /* ── Screenshot Preview Popup ──────────────────────────── */
+    #screenshot-preview {
+      position: fixed;
+      bottom: 64px; right: 70px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      z-index: 3000;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      max-width: 340px;
+      animation: ssPopIn 0.15s ease;
+    }
+    @keyframes ssPopIn {
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)  scale(1); }
+    }
+    #screenshot-preview img {
+      max-width: 316px; max-height: 200px;
+      display: block; border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-bottom: 10px;
+      object-fit: contain;
+    }
+    .ss-btn-row { display: flex; gap: 8px; }
+    .ss-btn {
+      flex: 1; padding: 7px 8px;
+      border-radius: 7px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border2);
+      background: var(--surface2);
+      color: var(--text-muted);
+    }
+    .ss-btn:hover { background: var(--surface3); color: var(--text); }
+    .ss-btn.primary { background: rgba(59,130,246,0.12); border-color: #3B82F6; color: #3B82F6; }
+    .ss-btn.primary:hover { background: rgba(59,130,246,0.25); }
+    .ss-btn.close-btn { flex: 0 0 auto; padding: 7px 10px; }
+
+    /* ── IDLE Screen ───────────────────────────────────────── */
     #idle-screen {
       display: flex;
       flex-direction: column;
@@ -34,7 +170,7 @@
     #drop-zone {
       width: 480px;
       height: 280px;
-      border: 2px dashed #444;
+      border: 2px dashed var(--border2);
       border-radius: 16px;
       display: flex;
       flex-direction: column;
@@ -42,15 +178,14 @@
       justify-content: center;
       gap: 16px;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
     }
     #drop-zone:hover, #drop-zone.drag-over {
       border-color: #3B82F6;
-      background: rgba(59, 130, 246, 0.05);
+      background: rgba(59,130,246,0.05);
     }
-    #drop-zone .icon { font-size: 48px; }
-    #drop-zone .label { font-size: 14px; color: #888; }
-    #drop-zone .sub   { font-size: 12px; color: #555; }
+    #drop-zone .icon  { font-size: 48px; }
+    #drop-zone .label { font-size: 14px; color: var(--text-muted); }
+    #drop-zone .sub   { font-size: 12px; color: var(--text-dim); }
 
     #file-input { display: none; }
 
@@ -59,19 +194,20 @@
       bottom: 0; left: 0; right: 0;
       padding: 20px;
       text-align: center;
-      border-top: 1px solid #1e1e1e;
+      border-top: 1px solid var(--footer-border);
+      background: var(--footer-bg);
     }
-    #vibe-footer p   { font-size: 12px; color: #555; margin-bottom: 6px; }
-    #vibe-footer a   { font-size: 13px; color: #0891B2; text-decoration: none; }
+    #vibe-footer p    { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    #vibe-footer a    { font-size: 13px; color: #0891B2; text-decoration: none; }
     #vibe-footer a:hover { color: #0E7490; }
-    #vibe-footer .sub { font-size: 11px; color: #3a3a3a; margin-top: 4px; }
+    #vibe-footer .sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 
-    /* ── Loading Overlay ──────────────────────────────────────── */
+    /* ── Loading Overlay ───────────────────────────────────── */
     #loading-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.85);
+      background: var(--loader-overlay);
       z-index: 999;
       flex-direction: column;
       align-items: center;
@@ -81,19 +217,20 @@
     #loading-overlay.visible { display: flex; }
     .spinner {
       width: 40px; height: 40px;
-      border: 3px solid #333;
+      border: 3px solid var(--spinner-track);
       border-top-color: #3B82F6;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    #loading-overlay p { font-size: 14px; color: #888; }
+    #loading-overlay p { font-size: 14px; color: var(--text-muted); }
 
-    /* ── PRESENTING Layout ────────────────────────────────────── */
+    /* ── PRESENTING Layout ─────────────────────────────────── */
     #app {
       display: none;
       height: 100vh;
       flex-direction: column;
+      background: var(--bg);
     }
     #app.visible { display: flex; }
 
@@ -104,7 +241,6 @@
       position: relative;
     }
 
-    /* Canvas wrapper */
     #canvas-wrapper {
       flex: 1;
       display: flex;
@@ -112,6 +248,7 @@
       justify-content: center;
       position: relative;
       overflow: hidden;
+      background: var(--canvas-bg);
     }
     #pdf-layer, #draw-layer {
       position: absolute;
@@ -120,12 +257,13 @@
     }
     #draw-layer { cursor: crosshair; }
 
-    /* ── Toolbar ──────────────────────────────────────────────── */
+    /* ── Toolbar ───────────────────────────────────────────── */
     #toolbar {
       width: 56px;
-      background: rgba(20,20,20,0.85);
-      backdrop-filter: blur(8px);
-      border-left: 1px solid #222;
+      background: var(--toolbar-bg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -137,7 +275,7 @@
     .toolbar-sep {
       width: 32px;
       height: 1px;
-      background: #333;
+      background: var(--border);
       margin: 6px 0;
     }
     .tool-btn {
@@ -145,32 +283,30 @@
       background: transparent;
       border: 1px solid transparent;
       border-radius: 8px;
-      color: #aaa;
+      color: var(--text-muted);
       font-size: 18px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.15s, border-color 0.15s, color 0.15s;
     }
-    .tool-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
+    .tool-btn:hover { background: var(--tool-hover); color: var(--text); }
     .tool-btn.active {
-      border-color: #fff;
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-      box-shadow: 0 0 8px rgba(255,255,255,0.15);
+      border-color: var(--tool-active-border);
+      background: var(--tool-active-bg);
+      color: var(--text);
+      box-shadow: 0 0 0 1px var(--tool-active-shadow);
     }
     .color-btn {
       width: 28px; height: 28px;
       border-radius: 50%;
       border: 2px solid transparent;
       cursor: pointer;
-      transition: border-color 0.15s, transform 0.1s;
+      transition: transform 0.1s !important;
     }
     .color-btn:hover  { transform: scale(1.1); }
-    .color-btn.active { border-color: #fff; transform: scale(1.1); }
+    .color-btn.active { border-color: var(--tool-active-border); transform: scale(1.15); }
 
-    /* Thickness slider */
     #thickness-wrap {
       display: flex;
       flex-direction: column;
@@ -178,14 +314,14 @@
       gap: 4px;
       padding: 4px 0;
     }
-    #thickness-wrap label { font-size: 9px; color: #555; }
+    #thickness-wrap label { font-size: 9px; color: var(--text-dim); }
     #thickness-slider {
       -webkit-appearance: none;
       writing-mode: vertical-lr;
       direction: rtl;
       width: 6px;
       height: 72px;
-      background: #333;
+      background: var(--slider-track);
       border-radius: 3px;
       cursor: pointer;
       outline: none;
@@ -193,42 +329,33 @@
     #thickness-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
       width: 14px; height: 14px;
-      background: #fff;
+      background: var(--slider-thumb);
       border-radius: 50%;
     }
 
-    .clear-btn {
+    .clear-btn, #clear-all-btn {
       width: 40px; height: 40px;
       background: transparent;
-      border: 1px solid #333;
+      border: 1px solid var(--border2);
       border-radius: 8px;
-      color: #888;
-      font-size: 16px;
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-    }
-    .clear-btn:hover { background: rgba(255,80,80,0.15); color: #ff5050; border-color: #ff5050; }
-
-    #clear-all-btn {
-      width: 40px; height: 40px;
-      background: transparent;
-      border: 1px solid #333;
-      border-radius: 8px;
-      color: #888;
+      color: var(--text-muted);
       font-size: 16px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    #clear-all-btn:hover { background: rgba(255,80,80,0.15); color: #ff5050; border-color: #ff5050; }
+    .clear-btn:hover, #clear-all-btn:hover {
+      background: rgba(239,68,68,0.10);
+      color: #ef4444;
+      border-color: #ef4444;
+    }
 
-    /* ── Bottom Controls ──────────────────────────────────────── */
+    /* ── Bottom Controls ───────────────────────────────────── */
     #bottom-bar {
       height: 44px;
-      background: rgba(15,15,15,0.95);
-      border-top: 1px solid #222;
+      background: var(--bar-bg);
+      border-top: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -237,38 +364,36 @@
     }
     .nav-btn {
       background: transparent;
-      border: 1px solid #333;
+      border: 1px solid var(--border2);
       border-radius: 6px;
-      color: #888;
+      color: var(--text-muted);
       font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
       padding: 4px 12px;
       cursor: pointer;
-      transition: background 0.15s, color 0.15s;
     }
-    .nav-btn:hover { background: rgba(255,255,255,0.07); color: #fff; }
+    .nav-btn:hover { background: var(--tool-hover); color: var(--text); }
     .nav-btn:disabled { opacity: 0.3; cursor: default; }
 
     #page-counter {
       font-size: 13px;
-      color: #888;
+      color: var(--text-muted);
       cursor: pointer;
       padding: 4px 8px;
       border-radius: 4px;
       border: 1px solid transparent;
       min-width: 80px;
       text-align: center;
-      transition: border-color 0.15s;
     }
-    #page-counter:hover { border-color: #444; color: #fff; }
+    #page-counter:hover { border-color: var(--border2); color: var(--text); }
 
     #page-input {
       display: none;
       width: 80px;
-      background: #1a1a1a;
+      background: var(--input-bg);
       border: 1px solid #3B82F6;
       border-radius: 4px;
-      color: #fff;
+      color: var(--text);
       font-family: 'JetBrains Mono', monospace;
       font-size: 13px;
       text-align: center;
@@ -276,21 +401,24 @@
       outline: none;
     }
 
-    #save-png-btn {
+    #save-png-btn, #download-pdf-btn {
       background: transparent;
-      border: 1px solid #333;
+      border: 1px solid var(--border2);
       border-radius: 6px;
-      color: #888;
+      color: var(--text-muted);
       font-family: 'JetBrains Mono', monospace;
       font-size: 12px;
       padding: 4px 12px;
       cursor: pointer;
-      transition: background 0.15s, color 0.15s;
     }
-    #save-png-btn:hover { background: rgba(59,130,246,0.15); color: #3B82F6; border-color: #3B82F6; }
+    #save-png-btn:hover    { background: rgba(59,130,246,0.10); color: #3B82F6; border-color: #3B82F6; }
+    #download-pdf-btn      { display: none; }
+    #download-pdf-btn.visible { display: inline-block; }
+    #download-pdf-btn:hover { background: rgba(132,204,22,0.10); color: #65a30d; border-color: #84CC16; }
+    [data-theme="dark"] #download-pdf-btn:hover { color: #84CC16; }
 
     #present-btn {
-      background: rgba(59,130,246,0.15);
+      background: rgba(59,130,246,0.10);
       border: 1px solid #3B82F6;
       border-radius: 6px;
       color: #3B82F6;
@@ -299,107 +427,187 @@
       padding: 4px 14px;
       cursor: pointer;
       font-weight: 600;
-      transition: background 0.15s, color 0.15s;
     }
-    #present-btn:hover { background: rgba(59,130,246,0.35); color: #fff; }
-    body.presentation #present-btn {
-      background: rgba(255,255,255,0.15);
-      border-color: #fff;
-      color: #fff;
-    }
+    #present-btn:hover { background: rgba(59,130,246,0.22); }
+    body.presentation #present-btn { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.6); color: #fff; }
 
-    /* ── Presentation Mode ───────────────────────────────────── */
-    /* 전체화면: app이 뷰포트 전체를 채움 */
-    body.presentation #app {
-      position: fixed;
-      inset: 0;
-      height: 100vh;
-      width: 100vw;
-    }
-
-    /* 전체화면: canvas-wrapper가 하단바 높이 제외하고 전체 차지 */
-    body.presentation #main-area {
-      height: calc(100vh - 44px);
-    }
-
-    /* 전체화면: 툴바를 오른쪽에 고정 오버레이로 표시 */
+    /* ── Presentation Mode ─────────────────────────────────── */
+    body.presentation #app    { position: fixed; inset: 0; }
+    body.presentation #main-area { height: calc(100vh - 44px); }
     body.presentation #toolbar {
-      position: fixed;
-      right: 0;
-      top: 0;
+      position: fixed; right: 0; top: 0;
       height: calc(100vh - 44px);
       z-index: 50;
-      box-shadow: -4px 0 16px rgba(0,0,0,0.6);
-      border-left: 1px solid #333;
+      box-shadow: -4px 0 20px rgba(0,0,0,0.20);
     }
+    body.presentation #bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; }
+    body.presentation #canvas-wrapper { background: #000 !important; }
 
-    /* 전체화면: 하단바 하단 고정 */
-    body.presentation #bottom-bar {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      z-index: 50;
-    }
-
-    body.presentation #canvas-wrapper { background: #000; }
-
-    /* 오버레이 이전/다음 버튼 */
     .overlay-nav {
-      position: fixed;
-      top: 50%;
+      position: fixed; top: 50%;
       transform: translateY(-50%);
       z-index: 200;
-      width: 52px;
-      height: 100px;
-      background: rgba(0,0,0,0.3);
+      width: 52px; height: 100px;
+      background: rgba(0,0,0,0.25);
       border: none;
-      color: rgba(255,255,255,0.5);
+      color: rgba(255,255,255,0.45);
       font-size: 28px;
       cursor: pointer;
       display: none;
       align-items: center;
       justify-content: center;
       border-radius: 6px;
-      transition: background 0.2s, color 0.2s;
     }
-    .overlay-nav:hover { background: rgba(0,0,0,0.65); color: #fff; }
+    .overlay-nav:hover { background: rgba(0,0,0,0.60); color: #fff; }
     .overlay-nav:disabled { opacity: 0.1; cursor: default; }
     #overlay-prev { left: 8px; }
     #overlay-next { right: 8px; }
-    /* 오버레이 nav는 사용하지 않음 — 하단바 버튼으로 대체 */
 
-    /* ESC 힌트 */
     #esc-hint {
       position: fixed;
       top: 12px; right: 14px;
       font-size: 11px;
-      color: rgba(255,255,255,0.25);
+      color: rgba(255,255,255,0.22);
       pointer-events: none;
       z-index: 200;
       display: none;
     }
     body.presentation #esc-hint { display: block; }
 
-    /* ── Toast ────────────────────────────────────────────────── */
+    /* ── Toast ─────────────────────────────────────────────── */
     #toast {
       position: fixed;
       bottom: 60px; left: 50%;
       transform: translateX(-50%) translateY(20px);
-      background: rgba(30,30,30,0.95);
-      border: 1px solid #444;
+      background: var(--toast-bg);
+      border: 1px solid var(--toast-border);
       border-radius: 8px;
       padding: 10px 20px;
       font-size: 13px;
-      color: #fff;
+      color: var(--toast-text);
       opacity: 0;
-      transition: opacity 0.2s, transform 0.2s;
+      transition: opacity 0.2s, transform 0.2s !important;
       pointer-events: none;
       z-index: 1000;
     }
-    #toast.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.error { border-color: #ef4444; color: #f87171; }
+
+    /* ── PPT Conversion Modal ──────────────────────────────── */
+    #ppt-modal {
+      display: none;
+      position: fixed; inset: 0;
+      background: var(--modal-overlay);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
     }
-    #toast.error { border-color: #ff5050; color: #ff9090; }
+    #ppt-modal.visible { display: flex; }
+    .ppt-modal-box {
+      background: var(--modal-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 560px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.14);
+    }
+    .ppt-modal-box h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+    .ppt-modal-box .ppt-filename {
+      font-size: 12px;
+      color: #92680a;
+      background: rgba(180,120,0,0.07);
+      border: 1px solid rgba(180,120,0,0.16);
+      border-radius: 6px;
+      padding: 6px 10px;
+      margin-bottom: 20px;
+      word-break: break-all;
+    }
+    [data-theme="dark"] .ppt-modal-box .ppt-filename {
+      color: #FFE033;
+      background: rgba(255,224,51,0.08);
+      border-color: rgba(255,224,51,0.20);
+    }
+    .ppt-modal-box p.desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 20px; }
+    .ppt-method-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+    .ppt-method-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .ppt-method-card .method-title { font-size: 12px; font-weight: 700; color: #3B82F6; margin-bottom: 6px; }
+    .ppt-method-card .method-body  { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+    .ppt-method-card code {
+      display: block;
+      background: var(--code-bg);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-top: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--code-text);
+      white-space: pre-wrap;
+      word-break: break-all;
+      cursor: pointer;
+      position: relative;
+    }
+    .ppt-method-card code:hover::after {
+      content: '복사';
+      position: absolute; top: 6px; right: 8px;
+      font-size: 10px; color: #3B82F6;
+    }
+    .ppt-modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ppt-action-btn {
+      flex: 1; min-width: 120px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px; font-weight: 600;
+      cursor: pointer;
+      border: 1px solid;
+      text-align: center;
+    }
+    .ppt-action-btn.primary  { background: rgba(59,130,246,0.10); border-color: #3B82F6; color: #3B82F6; }
+    .ppt-action-btn.primary:hover { background: rgba(59,130,246,0.22); }
+    .ppt-action-btn.secondary { background: transparent; border-color: var(--border2); color: var(--text-muted); }
+    .ppt-action-btn.secondary:hover { background: var(--tool-hover); color: var(--text); }
+    .ppt-action-btn:disabled  { opacity: 0.35; cursor: not-allowed; }
+    #ppt-convert-note { font-size: 11px; color: var(--text-dim); margin-top: 10px; text-align: center; line-height: 1.5; }
+
+    /* ── 우클릭 컨텍스트 메뉴 ──────────────────────────────── */
+    #ctx-menu {
+      display: none;
+      position: fixed;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 5px;
+      z-index: 5000;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.16);
+      min-width: 170px;
+    }
+    #ctx-menu.visible { display: block; }
+    .ctx-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .ctx-item:hover { background: var(--tool-hover); color: var(--text); }
+    .ctx-item.disabled { opacity: 0.32; cursor: default; pointer-events: none; }
+    .ctx-icon { font-size: 14px; width: 18px; text-align: center; }
+    .ctx-label { flex: 1; }
+    .ctx-shortcut { font-size: 11px; color: var(--text-dim); }
+    .ctx-sep { height: 1px; background: var(--border); margin: 4px 2px; }
   </style>
 </head>
 <body>
@@ -411,7 +619,7 @@
     <div class="label">PDF 파일을 드래그하거나 클릭해서 선택하세요</div>
     <div class="sub">강의 슬라이드 PDF를 불러옵니다</div>
   </div>
-  <input type="file" id="file-input" accept=".pdf" />
+  <input type="file" id="file-input" accept=".pdf,.ppt,.pptx" />
 
   <footer id="vibe-footer">
     <p>더 많은 앱을 활용하거나 만들고 싶으면</p>
@@ -425,7 +633,7 @@
 <!-- ── Loading Overlay ──────────────────────────────── -->
 <div id="loading-overlay">
   <div class="spinner"></div>
-  <p>PDF 로딩 중...</p>
+  <p id="loading-text">PDF 로딩 중...</p>
 </div>
 
 <!-- ── PRESENTING App ────────────────────────────────── -->
@@ -446,14 +654,25 @@
 
     <!-- Toolbar -->
     <div id="toolbar">
-      <!-- 도구 7개 -->
+      <!-- 라이트/다크 전환 -->
+      <button id="theme-toggle" title="라이트 / 다크 전환">🌙</button>
+
+      <div class="toolbar-sep"></div>
+
+      <!-- 선택/이동/크기조절 -->
+      <button class="tool-btn"        data-tool="select"     title="선택·이동·크기조절 (9)">✋</button>
+
+      <div class="toolbar-sep"></div>
+
+      <!-- 그리기 도구 -->
       <button class="tool-btn active" data-tool="pen"       title="펜 (1)">✏️</button>
       <button class="tool-btn"        data-tool="arrow"     title="화살표 (2)">➡️</button>
       <button class="tool-btn"        data-tool="circle"    title="동그라미 (3)">⭕</button>
       <button class="tool-btn"        data-tool="rect"      title="네모 (4)">⬜</button>
       <button class="tool-btn"        data-tool="text"      title="텍스트 (5)">T</button>
-      <button class="tool-btn"        data-tool="highlight" title="형광펜 (6)">▬</button>
-      <button class="tool-btn"        data-tool="eraser"    title="지우개 (7)">◻</button>
+      <button class="tool-btn"        data-tool="highlight"  title="형광펜 (6)">▬</button>
+      <button class="tool-btn"        data-tool="screenshot" title="스크린샷 (8)">⬚</button>
+      <button class="tool-btn"        data-tool="eraser"     title="지우개 (7)">⌫</button>
       <button id="clear-all-btn" title="현재 슬라이드 전체 지우기">🗑</button>
 
       <div class="toolbar-sep"></div>
@@ -488,6 +707,80 @@
     <button class="nav-btn" id="next-btn">NEXT →</button>
     <button id="present-btn" title="전체보기">⤢ 전체보기</button>
     <button id="save-png-btn">💾 PNG 저장</button>
+    <button id="download-pdf-btn" title="현재 로드된 PDF 다운로드">⬇️ PDF 저장</button>
+  </div>
+</div>
+
+<!-- PPT Conversion Modal -->
+<div id="ppt-modal">
+  <div class="ppt-modal-box">
+    <h2>📊 PPT 파일 감지</h2>
+    <div class="ppt-filename" id="ppt-filename"></div>
+
+    <!-- 확인 섹션 (기본 표시) -->
+    <div id="ppt-confirm-section">
+      <p class="desc">PPT/PPTX 파일을 자동으로 PDF로 변환하여 불러올 수 있습니다.</p>
+      <div class="ppt-modal-actions">
+        <button class="ppt-action-btn primary" id="ppt-convert-btn">⚡ 자동 변환하기</button>
+        <button class="ppt-action-btn secondary" id="ppt-show-manual-btn">📋 수동 변환 방법</button>
+        <button class="ppt-action-btn secondary" id="ppt-modal-close">✕ 취소</button>
+      </div>
+      <p id="ppt-convert-note"></p>
+    </div>
+
+    <!-- 수동 안내 섹션 -->
+    <div id="ppt-manual-section" style="display:none">
+      <div class="ppt-method-cards">
+        <div class="ppt-method-card">
+          <div class="method-title">🖥️ LibreOffice (명령줄)</div>
+          <div class="method-body">
+            LibreOffice가 설치되어 있다면 아래 명령어로 즉시 변환할 수 있습니다.
+            <code id="libreoffice-cmd" title="클릭해서 복사"></code>
+          </div>
+        </div>
+        <div class="ppt-method-card">
+          <div class="method-title">📁 Microsoft PowerPoint</div>
+          <div class="method-body">
+            PowerPoint에서 <strong style="color:#fff">파일 → 다른 이름으로 저장 → PDF</strong>를 선택하세요.
+          </div>
+        </div>
+        <div class="ppt-method-card">
+          <div class="method-title">🌐 온라인 무료 변환</div>
+          <div class="method-body">외부 서비스를 이용해 PPT를 PDF로 변환할 수 있습니다.</div>
+        </div>
+      </div>
+      <div class="ppt-modal-actions">
+        <button class="ppt-action-btn primary" id="ppt-open-online">🔗 온라인 변환 서비스 열기</button>
+        <button class="ppt-action-btn secondary" id="ppt-load-pdf">📂 변환된 PDF 불러오기</button>
+        <button class="ppt-action-btn secondary" id="ppt-back-btn">← 돌아가기</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 우클릭 컨텍스트 메뉴 -->
+<div id="ctx-menu">
+  <div class="ctx-item" data-action="select">
+    <span class="ctx-icon">✋</span>
+    <span class="ctx-label">선택</span>
+    <span class="ctx-shortcut">9</span>
+  </div>
+  <div class="ctx-item" data-action="screenshot">
+    <span class="ctx-icon">⬚</span>
+    <span class="ctx-label">스크린샷</span>
+    <span class="ctx-shortcut">8</span>
+  </div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctx-copy" data-action="copy">
+    <span class="ctx-icon">⎘</span>
+    <span class="ctx-label">복사</span>
+    <span class="ctx-shortcut">Ctrl+C</span>
+  </div>
+  <div class="ctx-item" id="ctx-paste" data-action="paste">
+    <span class="ctx-icon">⎗</span>
+    <span class="ctx-label">붙여넣기</span>
+    <span class="ctx-shortcut">Ctrl+V</span>
   </div>
 </div>
 
@@ -507,6 +800,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 const STORAGE_KEYS = { tool: 'lat_tool', color: 'lat_color', width: 'lat_width' };
 const COLOR_MAP = { red: '#FF3333', yellow: '#FFE033', lime: '#84CC16', blue: '#3B82F6' };
 
+// 이미지 stroke 렌더링 캐시: src(data URL) → HTMLImageElement
+const imageCache = {};
+
 const state = {
   pdf: null,
   totalPages: 0,
@@ -518,6 +814,9 @@ const state = {
   strokes: {},          // { [pageNum]: Stroke[] }
   renderedPages: {},    // { [pageNum]: ImageData } — eager 렌더링 캐시
   previewStroke: null,  // 드래그 중 미리보기용
+  pdfBytes: null,
+  pdfFilename: 'document.pdf',
+  copiedStroke: null,   // 내부 클립보드 (Ctrl+C로 복사된 개체)
 };
 
 // ══════════════════════════════════════════════════════════
@@ -543,6 +842,8 @@ const overlayPrev    = $('overlay-prev');
 const overlayNext    = $('overlay-next');
 const thicknessSlider = $('thickness-slider');
 const toastEl        = $('toast');
+const downloadPdfBtn = $('download-pdf-btn');
+const pptModal       = $('ppt-modal');
 
 const pdfCtx  = pdfCanvas.getContext('2d');
 const drawCtx = drawCanvas.getContext('2d');
@@ -584,6 +885,11 @@ const PDFRenderer = {
     loadingOverlay.classList.add('visible');
     try {
       const arrayBuffer = await file.arrayBuffer();
+      // PDF 바이트 저장 (다운로드용)
+      state.pdfBytes = arrayBuffer.slice(0);
+      state.pdfFilename = file.name.replace(/\.[^.]+$/, '') + '.pdf';
+      downloadPdfBtn.classList.add('visible');
+
       const pdf = await pdfjsLib.getDocument({
         data: arrayBuffer,
         onPassword: (updatePassword, reason) => {
@@ -734,6 +1040,20 @@ const CanvasManager = {
         drawCtx.stroke();
         break;
       }
+      case 'image': {
+        const { x: x1, y: y1 } = dPt(s.start.x, s.start.y);
+        const { x: x2, y: y2 } = dPt(s.end.x,   s.end.y);
+        const cached = imageCache[s.src];
+        if (cached) {
+          drawCtx.drawImage(cached, x1, y1, x2 - x1, y2 - y1);
+        } else {
+          // 아직 로드 안 됐으면 로드 후 자동 재렌더링
+          const img = new Image();
+          img.onload = () => { imageCache[s.src] = img; CanvasManager.redraw(); };
+          img.src = s.src;
+        }
+        break;
+      }
     }
     drawCtx.restore();
   },
@@ -776,6 +1096,7 @@ const ToolController = {
     thicknessSlider.value = state.lineWidth;
 
     document.querySelectorAll('.tool-btn').forEach(btn => {
+      if (!btn.dataset.tool) return;
       btn.addEventListener('click', () => this.applyTool(btn.dataset.tool));
     });
     document.querySelectorAll('.color-btn').forEach(btn => {
@@ -790,11 +1111,17 @@ const ToolController = {
   applyTool(tool) {
     state.activeTool = tool;
     localStorage.setItem(STORAGE_KEYS.tool, tool);
-    document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+    document.querySelectorAll('.tool-btn').forEach(b => {
+      if (b.dataset.tool) b.classList.toggle('active', b.dataset.tool === tool);
+    });
     // 커서
-    if (tool === 'text')   drawCanvas.style.cursor = 'text';
-    else if (tool === 'eraser') drawCanvas.style.cursor = 'cell';
-    else                   drawCanvas.style.cursor = 'crosshair';
+    if (tool === 'text')         drawCanvas.style.cursor = 'text';
+    else if (tool === 'eraser')  drawCanvas.style.cursor = 'cell';
+    else if (tool === 'screenshot') drawCanvas.style.cursor = 'crosshair';
+    else if (tool === 'select')    drawCanvas.style.cursor = 'default';
+    else                           drawCanvas.style.cursor = 'crosshair';
+    // 선택 도구 해제 시 선택 상태 초기화
+    if (tool !== 'select') SelectTool.deselect();
   },
 
   applyColor(color) {
@@ -803,6 +1130,333 @@ const ToolController = {
     document.querySelectorAll('.color-btn').forEach(b => b.classList.toggle('active', b.dataset.color === color));
   },
 };
+
+// ══════════════════════════════════════════════════════════
+// SelectTool — 스트로크 선택 & 이동
+// ══════════════════════════════════════════════════════════
+const SelectTool = {
+  selectedIdx:  -1,
+  mode:         null,   // null | 'move' | 'resize'
+  dragStart:    null,   // { x, y } 정규화 좌표
+  resizeCorner: null,   // 'tl' | 'tr' | 'bl' | 'br'
+  _origStroke:  null,   // 리사이즈 시작 시점의 stroke 딥카피
+  _origBBox:    null,   // 리사이즈 시작 시점의 bbox
+
+  HANDLE_PX: 10,        // 핸들 클릭 감지 반경 (canvas px)
+
+  // ── BBox ────────────────────────────────────────────────
+  getBBox(s, pad = true) {
+    let xs = [], ys = [];
+    if (s.points && s.points.length) s.points.forEach(p => { xs.push(p.x); ys.push(p.y); });
+    if (s.start) { xs.push(s.start.x); ys.push(s.start.y); }
+    if (s.end)   { xs.push(s.end.x);   ys.push(s.end.y); }
+    if (!xs.length) return null;
+    const p = pad ? Math.max(s.lineWidth * 2, 0.015) : 0;
+    return { x1: Math.min(...xs) - p, y1: Math.min(...ys) - p,
+             x2: Math.max(...xs) + p, y2: Math.max(...ys) + p };
+  },
+
+  // ── 핸들 hit 확인 (정규화 좌표) ─────────────────────────
+  hitHandle(nx, ny, bb) {
+    const hit = this.HANDLE_PX / drawCanvas.width;
+    for (const [name, hx, hy] of [
+      ['tl', bb.x1, bb.y1], ['tr', bb.x2, bb.y1],
+      ['bl', bb.x1, bb.y2], ['br', bb.x2, bb.y2],
+    ]) {
+      if (Math.abs(nx - hx) <= hit && Math.abs(ny - hy) <= hit) return name;
+    }
+    return null;
+  },
+
+  // ── Stroke body hit 확인 ─────────────────────────────────
+  hitTest(nx, ny) {
+    const strokes = StrokeStore.get(state.currentPage);
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const bb = this.getBBox(strokes[i]);
+      if (bb && nx >= bb.x1 && nx <= bb.x2 && ny >= bb.y1 && ny <= bb.y2) return i;
+    }
+    return -1;
+  },
+
+  // ── 선택 & 해제 ──────────────────────────────────────────
+  select(idx) { this.selectedIdx = idx; this.redrawWithHighlight(); },
+
+  deselect() {
+    this.selectedIdx = -1; this.mode = null; this.dragStart = null;
+    this.resizeCorner = null; this._origStroke = null; this._origBBox = null;
+    CanvasManager.redraw();
+  },
+
+  // ── 선택 박스 + 핸들 그리기 ─────────────────────────────
+  redrawWithHighlight() {
+    CanvasManager.redraw();
+    if (this.selectedIdx < 0) return;
+    const s = StrokeStore.get(state.currentPage)[this.selectedIdx];
+    if (!s) return;
+    const bb = this.getBBox(s);
+    if (!bb) return;
+    const { x: px1, y: py1 } = dPt(bb.x1, bb.y1);
+    const { x: px2, y: py2 } = dPt(bb.x2, bb.y2);
+    const pw = px2 - px1, ph = py2 - py1;
+
+    drawCtx.save();
+
+    // 점선 박스
+    drawCtx.strokeStyle = '#3B82F6';
+    drawCtx.lineWidth   = 1.5;
+    drawCtx.setLineDash([5, 3]);
+    drawCtx.strokeRect(px1, py1, pw, ph);
+    drawCtx.setLineDash([]);
+
+    // 모서리 핸들 (크기조절) — 흰 사각형 + 파란 테두리
+    const hs = 9;
+    for (const [cx, cy] of [[px1,py1],[px2,py1],[px1,py2],[px2,py2]]) {
+      drawCtx.fillStyle   = '#ffffff';
+      drawCtx.strokeStyle = '#3B82F6';
+      drawCtx.lineWidth   = 1.5;
+      drawCtx.fillRect  (cx - hs/2, cy - hs/2, hs, hs);
+      drawCtx.strokeRect(cx - hs/2, cy - hs/2, hs, hs);
+    }
+
+    // 가운데 핸들 (이동 힌트) — 파란 다이아몬드
+    const mx = px1 + pw/2, my = py1 + ph/2;
+    drawCtx.fillStyle   = '#3B82F6';
+    drawCtx.strokeStyle = '#fff';
+    drawCtx.lineWidth   = 1;
+    drawCtx.beginPath();
+    drawCtx.moveTo(mx, my - 5); drawCtx.lineTo(mx + 5, my);
+    drawCtx.lineTo(mx, my + 5); drawCtx.lineTo(mx - 5, my);
+    drawCtx.closePath();
+    drawCtx.fill(); drawCtx.stroke();
+
+    drawCtx.restore();
+  },
+
+  // ── 이동 ────────────────────────────────────────────────
+  _move(dx, dy) {
+    const s = StrokeStore.get(state.currentPage)[this.selectedIdx];
+    if (!s) return;
+    if (s.points) s.points = s.points.map(p => ({ x: p.x+dx, y: p.y+dy }));
+    if (s.start)  s.start  = { x: s.start.x+dx, y: s.start.y+dy };
+    if (s.end)    s.end    = { x: s.end.x+dx,   y: s.end.y+dy };
+    this.redrawWithHighlight();
+  },
+
+  // ── 스케일 적용 (origStroke → dest) ─────────────────────
+  _applyScale(src, dest, ax, ay, sx, sy) {
+    const sp = p => ({ x: ax + (p.x - ax) * sx, y: ay + (p.y - ay) * sy });
+    if (src.points) dest.points = src.points.map(sp);
+    if (src.start)  dest.start  = sp(src.start);
+    if (src.end)    dest.end    = sp(src.end);
+    dest.lineWidth = Math.max(src.lineWidth * Math.sqrt(Math.abs(sx * sy)), 0.002);
+  },
+
+  // ── 커서 ────────────────────────────────────────────────
+  _cornerCursor(c) { return (c==='tl'||c==='br') ? 'nwse-resize' : 'nesw-resize'; },
+
+  updateHoverCursor(nx, ny) {
+    if (this.mode !== null) return; // 드래그 중엔 변경 X
+    if (this.selectedIdx >= 0) {
+      const s = StrokeStore.get(state.currentPage)[this.selectedIdx];
+      if (s) {
+        const corner = this.hitHandle(nx, ny, this.getBBox(s));
+        if (corner) { drawCanvas.style.cursor = this._cornerCursor(corner); return; }
+      }
+    }
+    drawCanvas.style.cursor = this.hitTest(nx, ny) >= 0 ? 'move' : 'default';
+  },
+
+  // ── 이벤트 핸들러 ────────────────────────────────────────
+  onMouseDown(nx, ny) {
+    // 이미 선택된 상태 → 모서리 핸들 먼저 확인
+    if (this.selectedIdx >= 0) {
+      const s = StrokeStore.get(state.currentPage)[this.selectedIdx];
+      if (s) {
+        const bb     = this.getBBox(s);
+        const corner = bb ? this.hitHandle(nx, ny, bb) : null;
+        if (corner) {
+          this.mode         = 'resize';
+          this.resizeCorner = corner;
+          this.dragStart    = { x: nx, y: ny };
+          this._origStroke  = JSON.parse(JSON.stringify(s));
+          this._origBBox    = this.getBBox(this._origStroke);
+          drawCanvas.style.cursor = this._cornerCursor(corner);
+          return;
+        }
+      }
+    }
+    // Stroke body 클릭
+    const idx = this.hitTest(nx, ny);
+    if (idx >= 0) {
+      this.select(idx);
+      this.mode      = 'move';
+      this.dragStart = { x: nx, y: ny };
+      drawCanvas.style.cursor = 'move';
+    } else {
+      this.deselect();
+    }
+  },
+
+  onMouseMove(nx, ny) {
+    if (this.mode === 'move' && this.dragStart) {
+      const dx = nx - this.dragStart.x, dy = ny - this.dragStart.y;
+      this.dragStart = { x: nx, y: ny };
+      this._move(dx, dy);
+      return;
+    }
+    if (this.mode === 'resize' && this._origBBox) {
+      const ob = this._origBBox;
+      const ow = ob.x2 - ob.x1, oh = ob.y2 - ob.y1;
+      if (ow < 1e-6 || oh < 1e-6) return;
+      let ax, ay, sx, sy;
+      switch (this.resizeCorner) {
+        case 'br': ax=ob.x1; ay=ob.y1; sx=(nx-ob.x1)/ow; sy=(ny-ob.y1)/oh; break;
+        case 'tl': ax=ob.x2; ay=ob.y2; sx=(ob.x2-nx)/ow; sy=(ob.y2-ny)/oh; break;
+        case 'tr': ax=ob.x1; ay=ob.y2; sx=(nx-ob.x1)/ow; sy=(ob.y2-ny)/oh; break;
+        case 'bl': ax=ob.x2; ay=ob.y1; sx=(ob.x2-nx)/ow; sy=(ny-ob.y1)/oh; break;
+      }
+      sx = Math.max(sx, 0.02); sy = Math.max(sy, 0.02); // 뒤집기 방지
+      const s = StrokeStore.get(state.currentPage)[this.selectedIdx];
+      if (s) { this._applyScale(this._origStroke, s, ax, ay, sx, sy); this.redrawWithHighlight(); }
+      return;
+    }
+  },
+
+  onMouseUp() {
+    this.mode = null; this.dragStart = null;
+    this.resizeCorner = null; this._origStroke = null; this._origBBox = null;
+    drawCanvas.style.cursor = 'default';
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// Screenshot — 영역 선택 → 클립보드 복사
+// ══════════════════════════════════════════════════════════
+let screenshotStart = null; // { x, y } 캔버스 픽셀 좌표
+
+function drawSelectionRect(x1, y1, x2, y2) {
+  const left = Math.min(x1, x2), top  = Math.min(y1, y2);
+  const w    = Math.abs(x2 - x1), h   = Math.abs(y2 - y1);
+  drawCtx.save();
+
+  // 반투명 배경
+  drawCtx.fillStyle = 'rgba(59,130,246,0.07)';
+  drawCtx.fillRect(left, top, w, h);
+
+  // 파란 점선 테두리
+  drawCtx.strokeStyle = '#3B82F6';
+  drawCtx.lineWidth   = 1.5;
+  drawCtx.setLineDash([6, 3]);
+  drawCtx.strokeRect(left, top, w, h);
+
+  // 네 모서리 핸들
+  const s = 7;
+  drawCtx.setLineDash([]);
+  drawCtx.fillStyle = '#3B82F6';
+  [[left, top], [left + w, top], [left, top + h], [left + w, top + h]].forEach(([cx, cy]) => {
+    drawCtx.fillRect(cx - s / 2, cy - s / 2, s, s);
+  });
+
+  // 크기 레이블
+  drawCtx.fillStyle   = '#3B82F6';
+  drawCtx.font        = '11px JetBrains Mono, monospace';
+  drawCtx.setLineDash([]);
+  const label = `${Math.round(w)} × ${Math.round(h)}`;
+  drawCtx.fillText(label, left + 4, top > 14 ? top - 4 : top + h + 13);
+
+  drawCtx.restore();
+}
+
+// captureRegion: 캔버스 합성 후 프리뷰 팝업 표시
+// 클립보드 복사는 팝업 버튼 클릭(= 명확한 user gesture)으로 처리
+function captureRegion(x1, y1, x2, y2) {
+  const left = Math.min(x1, x2), top = Math.min(y1, y2);
+  const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+  if (w < 4 || h < 4) return;
+
+  const off = document.createElement('canvas');
+  off.width = w; off.height = h;
+  const ctx = off.getContext('2d');
+  ctx.drawImage(pdfCanvas,  left, top, w, h, 0, 0, w, h);
+  ctx.drawImage(drawCanvas, left, top, w, h, 0, 0, w, h);
+
+  showScreenshotPreview(off);
+}
+
+function showScreenshotPreview(offCanvas) {
+  // 기존 프리뷰 제거
+  document.getElementById('screenshot-preview')?.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'screenshot-preview';
+
+  // 미리보기 이미지
+  const img = document.createElement('img');
+  img.src = offCanvas.toDataURL('image/png');
+  img.alt = '스크린샷 미리보기';
+
+  // 버튼 행
+  const btnRow = document.createElement('div');
+  btnRow.className = 'ss-btn-row';
+
+  // ─ 클립보드 복사 버튼
+  // async/await 금지: onclick이 async이거나 clipboard.write 전에 await가 있으면
+  // user gesture token이 소멸되어 실패함.
+  // → onclick을 동기 함수로 유지하고 clipboard.write를 즉시(동기) 호출.
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'ss-btn primary';
+  copyBtn.textContent = '📋 클립보드 복사';
+  copyBtn.onclick = () => {
+    if (!navigator.clipboard?.write || !window.ClipboardItem) {
+      showToast('클립보드 API 미지원 — 파일로 저장합니다.', true);
+      offCanvas.toBlob(blob => _downloadBlob(blob), 'image/png');
+      return;
+    }
+    // ClipboardItem에 Promise를 직접 전달하고, clipboard.write를 동기 호출
+    // (async 함수 없이 → user gesture token 유지)
+    navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': new Promise(r => offCanvas.toBlob(r, 'image/png')) })
+    ]).then(() => {
+      showToast('📋 복사 완료! Ctrl+V로 붙여넣기 하세요.');
+      wrap.remove();
+    }).catch(() => {
+      showToast('클립보드 복사 실패 — 파일로 저장합니다.', true);
+      offCanvas.toBlob(blob => _downloadBlob(blob), 'image/png');
+    });
+  };
+
+  // ─ 파일 저장 버튼
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'ss-btn';
+  saveBtn.textContent = '💾 파일 저장';
+  saveBtn.onclick = () => {
+    offCanvas.toBlob(blob => _downloadBlob(blob), 'image/png');
+    wrap.remove();
+  };
+
+  // ─ 닫기
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'ss-btn close-btn';
+  closeBtn.textContent = '✕';
+  closeBtn.onclick = () => wrap.remove();
+
+  btnRow.append(copyBtn, saveBtn, closeBtn);
+  wrap.append(img, btnRow);
+  document.body.appendChild(wrap);
+
+  // 10초 후 자동 닫기
+  const timer = setTimeout(() => wrap.remove(), 10000);
+  wrap.addEventListener('mouseenter', () => clearTimeout(timer));
+}
+
+function _downloadBlob(blob) {
+  if (!blob) return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `screenshot-${Date.now()}.png`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 // ══════════════════════════════════════════════════════════
 // Drawing Events
@@ -833,6 +1487,16 @@ drawCanvas.addEventListener('mousedown', e => {
     return;
   }
 
+  if (state.activeTool === 'screenshot') {
+    screenshotStart = { x: pos.x, y: pos.y };
+    return;
+  }
+
+  if (state.activeTool === 'select') {
+    SelectTool.onMouseDown(nPt(pos.x, pos.y).x, nPt(pos.x, pos.y).y);
+    return;
+  }
+
   state.isDrawing = true;
   const color = COLOR_MAP[state.activeColor] || state.activeColor;
   const lw    = nW(state.lineWidth);
@@ -848,6 +1512,26 @@ drawCanvas.addEventListener('mousedown', e => {
 });
 
 drawCanvas.addEventListener('mousemove', e => {
+  // screenshot 드래그 미리보기
+  if (state.activeTool === 'screenshot' && screenshotStart) {
+    const pos = getCanvasPos(e);
+    CanvasManager.redraw();
+    drawSelectionRect(screenshotStart.x, screenshotStart.y, pos.x, pos.y);
+    return;
+  }
+
+  // select 이동 / 리사이즈 / hover 커서
+  if (state.activeTool === 'select') {
+    const pos = getCanvasPos(e);
+    const np  = nPt(pos.x, pos.y);
+    if (SelectTool.mode !== null) {
+      SelectTool.onMouseMove(np.x, np.y);
+    } else {
+      SelectTool.updateHoverCursor(np.x, np.y);
+    }
+    return;
+  }
+
   if (!state.isDrawing || !currentStroke) return;
   const pos = getCanvasPos(e);
   const np  = nPt(pos.x, pos.y);
@@ -863,6 +1547,22 @@ drawCanvas.addEventListener('mousemove', e => {
 });
 
 drawCanvas.addEventListener('mouseup', e => {
+  // screenshot 영역 확정 → 캡처
+  if (state.activeTool === 'screenshot' && screenshotStart) {
+    const pos = getCanvasPos(e);
+    const start = screenshotStart;
+    screenshotStart = null;
+    CanvasManager.redraw();
+    captureRegion(start.x, start.y, pos.x, pos.y);
+    return;
+  }
+
+  // select 드래그 종료
+  if (state.activeTool === 'select') {
+    SelectTool.onMouseUp();
+    return;
+  }
+
   if (!state.isDrawing || !currentStroke) return;
   state.isDrawing = false;
 
@@ -876,6 +1576,15 @@ drawCanvas.addEventListener('mouseup', e => {
 });
 
 drawCanvas.addEventListener('mouseleave', e => {
+  if (state.activeTool === 'screenshot' && screenshotStart) {
+    screenshotStart = null;
+    CanvasManager.redraw();
+    return;
+  }
+  if (state.activeTool === 'select') {
+    SelectTool.onMouseUp();
+    return;
+  }
   if (state.isDrawing && currentStroke) {
     StrokeStore.add(state.currentPage, { ...currentStroke });
     CanvasManager.redraw();
@@ -1074,7 +1783,44 @@ const KeyboardHandler = {
         case '4': ToolController.applyTool('rect');      break;
         case '5': ToolController.applyTool('text');      break;
         case '6': ToolController.applyTool('highlight'); break;
-        case '7': ToolController.applyTool('eraser');    break;
+        case '7': ToolController.applyTool('eraser');     break;
+        case '8': ToolController.applyTool('screenshot'); break;
+        case '9': ToolController.applyTool('select');     break;
+        case 'Delete':
+        case 'Backspace':
+          if (state.activeTool === 'select' && SelectTool.selectedIdx >= 0) {
+            const strokes = StrokeStore.get(state.currentPage);
+            strokes.splice(SelectTool.selectedIdx, 1);
+            SelectTool.deselect();
+          }
+          break;
+        case 'c':
+          if ((e.ctrlKey || e.metaKey) && state.activeTool === 'select' && SelectTool.selectedIdx >= 0) {
+            const s = StrokeStore.get(state.currentPage)[SelectTool.selectedIdx];
+            if (s) {
+              state.copiedStroke = JSON.parse(JSON.stringify(s));
+              showToast('개체 복사 완료. Ctrl+V로 붙여넣기');
+            }
+            e.preventDefault();
+          }
+          break;
+        case 'v':
+          if ((e.ctrlKey || e.metaKey) && state.copiedStroke) {
+            const copy = JSON.parse(JSON.stringify(state.copiedStroke));
+            // 살짝 오프셋 이동 (겹침 방지)
+            const off = 0.025;
+            const sh  = p => ({ x: p.x + off, y: p.y + off });
+            if (copy.points) copy.points = copy.points.map(sh);
+            if (copy.start)  copy.start  = sh(copy.start);
+            if (copy.end)    copy.end    = sh(copy.end);
+            StrokeStore.add(state.currentPage, copy);
+            // 붙여넣은 개체를 바로 선택
+            ToolController.applyTool('select');
+            SelectTool.select(StrokeStore.get(state.currentPage).length - 1);
+            showToast('붙여넣기 완료');
+            e.preventDefault();
+          }
+          break;
         case 'f': case 'F':
           document.fullscreenElement
             ? document.exitFullscreen()
@@ -1086,6 +1832,161 @@ const KeyboardHandler = {
     // 전체화면 변경 시 캔버스 리사이즈
     document.addEventListener('fullscreenchange', () => {
       if (state.pdf) PDFRenderer.showPage(state.currentPage);
+    });
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// PDF 다운로드
+// ══════════════════════════════════════════════════════════
+downloadPdfBtn.addEventListener('click', () => {
+  if (!state.pdfBytes) return;
+  const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.download = state.pdfFilename;
+  a.href     = url;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+// ══════════════════════════════════════════════════════════
+// PptHandler — PPT/PPTX 자동 변환 + 수동 안내
+// ══════════════════════════════════════════════════════════
+const PptHandler = {
+  _pendingFile:   null,
+  _pptFileInput:  null,
+  _serverChecked: false,
+  _serverAvail:   false,
+
+  // 서버 LibreOffice 가용 여부 확인 (최초 1회)
+  async _checkServer() {
+    if (this._serverChecked) return this._serverAvail;
+    this._serverChecked = true;
+    if (window.location.protocol === 'file:') {
+      this._serverAvail = false;
+      return false;
+    }
+    try {
+      const r = await fetch('/api/convert-status', {
+        signal: AbortSignal.timeout(4000),
+      });
+      const data = await r.json();
+      this._serverAvail = data.available === true;
+    } catch {
+      this._serverAvail = false;
+    }
+    return this._serverAvail;
+  },
+
+  async showGuide(file) {
+    this._pendingFile = file;
+    $('ppt-filename').textContent = '📎 ' + file.name;
+    $('libreoffice-cmd').textContent = `soffice --headless --convert-to pdf "${file.name}"`;
+
+    // 기본: 확인 섹션 표시
+    $('ppt-confirm-section').style.display = '';
+    $('ppt-manual-section').style.display  = 'none';
+    $('ppt-convert-note').textContent = '';
+    $('ppt-convert-btn').disabled = false;
+
+    pptModal.classList.add('visible');
+
+    // 서버 상태 비동기 확인 → 결과에 따라 버튼 업데이트
+    const avail = await this._checkServer();
+    if (!avail) {
+      $('ppt-convert-btn').disabled = true;
+      $('ppt-convert-note').textContent =
+        window.location.protocol === 'file:'
+          ? '⚠️ 로컬 파일 실행 중 — 자동 변환은 서버 환경(Docker/Render)에서만 사용 가능합니다.'
+          : '⚠️ 서버에서 LibreOffice를 찾을 수 없습니다. 수동 변환 방법을 이용해 주세요.';
+    }
+  },
+
+  async convert() {
+    if (!this._pendingFile) return;
+
+    pptModal.classList.remove('visible');
+
+    const loadingText = $('loading-text');
+    loadingText.textContent = 'PPT 변환 중...';
+    loadingOverlay.classList.add('visible');
+
+    const formData = new FormData();
+    formData.append('file', this._pendingFile);
+
+    try {
+      const res = await fetch('/convert', { method: 'POST', body: formData });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: '알 수 없는 오류' }));
+        throw new Error(errData.error || '변환 실패');
+      }
+
+      const pdfBlob = await res.blob();
+      const pdfFilename = this._pendingFile.name.replace(/\.pptx?$/i, '.pdf');
+      const pdfFile = new File([pdfBlob], pdfFilename, { type: 'application/pdf' });
+
+      // 로딩 텍스트 복원 후 PDF 로드 (PDFRenderer가 overlay를 다시 사용)
+      loadingText.textContent = 'PDF 로딩 중...';
+      loadingOverlay.classList.remove('visible');
+
+      await PDFRenderer.load(pdfFile);
+      showToast('PPT → PDF 변환 완료!');
+    } catch (e) {
+      loadingText.textContent = 'PDF 로딩 중...';
+      loadingOverlay.classList.remove('visible');
+      showToast('변환 실패: ' + e.message, true);
+      // 수동 안내로 폴백
+      $('ppt-confirm-section').style.display = 'none';
+      $('ppt-manual-section').style.display  = '';
+      pptModal.classList.add('visible');
+    }
+  },
+
+  init() {
+    $('ppt-convert-btn').addEventListener('click', () => this.convert());
+
+    $('ppt-show-manual-btn').addEventListener('click', () => {
+      $('ppt-confirm-section').style.display = 'none';
+      $('ppt-manual-section').style.display  = '';
+    });
+
+    $('ppt-back-btn').addEventListener('click', () => {
+      $('ppt-confirm-section').style.display = '';
+      $('ppt-manual-section').style.display  = 'none';
+    });
+
+    // LibreOffice 명령어 복사
+    $('libreoffice-cmd').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText($('libreoffice-cmd').textContent);
+        showToast('명령어가 클립보드에 복사되었습니다.');
+      } catch {
+        showToast('복사 실패 — 직접 선택 후 복사하세요.', true);
+      }
+    });
+
+    $('ppt-open-online').addEventListener('click', () => {
+      window.open('https://www.ilovepdf.com/ko/powerpoint_to_pdf', '_blank', 'noopener');
+    });
+
+    // 변환된 PDF 직접 불러오기
+    this._pptFileInput = document.createElement('input');
+    this._pptFileInput.type = 'file';
+    this._pptFileInput.accept = '.pdf';
+    this._pptFileInput.style.display = 'none';
+    document.body.appendChild(this._pptFileInput);
+    this._pptFileInput.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (f) { pptModal.classList.remove('visible'); PDFRenderer.load(f); }
+      this._pptFileInput.value = '';
+    });
+    $('ppt-load-pdf').addEventListener('click', () => this._pptFileInput.click());
+
+    $('ppt-modal-close').addEventListener('click', () => pptModal.classList.remove('visible'));
+    pptModal.addEventListener('click', e => {
+      if (e.target === pptModal) pptModal.classList.remove('visible');
     });
   },
 };
@@ -1120,8 +2021,13 @@ const FileHandler = {
   },
 
   load(file) {
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      showToast('PDF 파일만 지원합니다.', true);
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.ppt') || name.endsWith('.pptx')) {
+      PptHandler.showGuide(file);
+      return;
+    }
+    if (!name.endsWith('.pdf') && file.type !== 'application/pdf') {
+      showToast('PDF 또는 PPT/PPTX 파일만 지원합니다.', true);
       return;
     }
     PDFRenderer.load(file);
@@ -1129,10 +2035,210 @@ const FileHandler = {
 };
 
 // ══════════════════════════════════════════════════════════
+// Theme Toggle
+// ══════════════════════════════════════════════════════════
+const THEME_KEY   = 'lat_theme';
+const themeToggle = $('theme-toggle');
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+// 저장된 테마 또는 시스템 설정 감지
+const savedTheme = localStorage.getItem(THEME_KEY)
+  || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+applyTheme(savedTheme);
+
+themeToggle.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+// ══════════════════════════════════════════════════════════
+// 우클릭 컨텍스트 메뉴
+// ══════════════════════════════════════════════════════════
+const ctxMenu = $('ctx-menu');
+
+function showCtxMenu(clientX, clientY) {
+  // 복사: select 도구 + 개체 선택 상태일 때만 활성
+  $('ctx-copy').classList.toggle('disabled',
+    !(state.activeTool === 'select' && SelectTool.selectedIdx >= 0));
+
+  ctxMenu.classList.add('visible');
+
+  // 화면 밖으로 넘치지 않도록 위치 보정
+  const mw = ctxMenu.offsetWidth  || 172;
+  const mh = ctxMenu.offsetHeight || 148;
+  const left = (clientX + mw > window.innerWidth)  ? clientX - mw : clientX;
+  const top  = (clientY + mh > window.innerHeight) ? clientY - mh : clientY;
+  ctxMenu.style.left = left + 'px';
+  ctxMenu.style.top  = top  + 'px';
+}
+
+function hideCtxMenu() { ctxMenu.classList.remove('visible'); }
+
+// 캔버스 우클릭 → 메뉴 표시
+drawCanvas.addEventListener('contextmenu', e => {
+  if (!state.pdf) return;
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY);
+});
+
+// 바깥 클릭 → 메뉴 닫기
+document.addEventListener('click',       () => hideCtxMenu());
+document.addEventListener('contextmenu', e => {
+  if (!e.target.closest('#ctx-menu') && !e.target.closest('#draw-layer')) hideCtxMenu();
+});
+document.addEventListener('keydown',     e => { if (e.key === 'Escape') hideCtxMenu(); });
+
+// 메뉴 항목 클릭 처리
+ctxMenu.addEventListener('click', e => {
+  const item = e.target.closest('.ctx-item');
+  if (!item || item.classList.contains('disabled')) return;
+  hideCtxMenu();
+
+  switch (item.dataset.action) {
+    case 'select':
+      ToolController.applyTool('select');
+      break;
+
+    case 'screenshot':
+      ToolController.applyTool('screenshot');
+      break;
+
+    case 'copy':
+      if (state.activeTool === 'select' && SelectTool.selectedIdx >= 0) {
+        const s = StrokeStore.get(state.currentPage)[SelectTool.selectedIdx];
+        if (s) {
+          state.copiedStroke = JSON.parse(JSON.stringify(s));
+          showToast('개체 복사 완료. Ctrl+V 또는 우클릭 → 붙여넣기');
+        }
+      }
+      break;
+
+    case 'paste':
+      if (state.copiedStroke) {
+        // 내부 stroke 붙여넣기
+        const copy = JSON.parse(JSON.stringify(state.copiedStroke));
+        const off = 0.025;
+        const sh = p => ({ x: p.x + off, y: p.y + off });
+        if (copy.points) copy.points = copy.points.map(sh);
+        if (copy.start)  copy.start  = sh(copy.start);
+        if (copy.end)    copy.end    = sh(copy.end);
+        StrokeStore.add(state.currentPage, copy);
+        ToolController.applyTool('select');
+        SelectTool.select(StrokeStore.get(state.currentPage).length - 1);
+        showToast('붙여넣기 완료');
+      } else {
+        // 시스템 클립보드에서 이미지 읽기 (clipboard-read 권한 필요)
+        if (!navigator.clipboard?.read) {
+          showToast('Ctrl+V로 붙여넣기 하세요.', true); break;
+        }
+        navigator.clipboard.read().then(items => {
+          for (const ci of items) {
+            const imgType = ci.types.find(t => t.startsWith('image/'));
+            if (!imgType) continue;
+            ci.getType(imgType).then(blob => {
+              const reader = new FileReader();
+              reader.onload = ev => {
+                const src = ev.target.result;
+                const img = new Image();
+                img.onload = () => {
+                  imageCache[src] = img;
+                  let nw = img.naturalWidth  / drawCanvas.width;
+                  let nh = img.naturalHeight / drawCanvas.height;
+                  const maxDim = 0.6;
+                  if (nw > maxDim || nh > maxDim) {
+                    const sc = maxDim / Math.max(nw, nh); nw *= sc; nh *= sc;
+                  }
+                  StrokeStore.add(state.currentPage, {
+                    type: 'image', src,
+                    start: { x: (1-nw)/2, y: (1-nh)/2 },
+                    end:   { x: (1+nw)/2, y: (1+nh)/2 },
+                    points: [], lineWidth: 0.001, color: '',
+                  });
+                  CanvasManager.redraw();
+                  ToolController.applyTool('select');
+                  SelectTool.select(StrokeStore.get(state.currentPage).length - 1);
+                  showToast('이미지 붙여넣기 완료');
+                };
+                img.src = src;
+              };
+              reader.readAsDataURL(blob);
+            });
+            return;
+          }
+          showToast('클립보드에 이미지가 없습니다.', true);
+        }).catch(() => showToast('Ctrl+V로 붙여넣기 하세요.', true));
+      }
+      break;
+  }
+});
+
+// ══════════════════════════════════════════════════════════
+// 이미지 붙여넣기 — 시스템 클립보드(Ctrl+V) → 캔버스
+// ══════════════════════════════════════════════════════════
+document.addEventListener('paste', e => {
+  // 앱이 로드된 상태에서만, input에 포커스된 상태는 제외
+  if (!state.pdf || !appEl.classList.contains('visible')) return;
+  if (e.target.tagName === 'INPUT') return;
+
+  const items = e.clipboardData?.items;
+  if (!items) return;
+
+  for (const item of items) {
+    if (!item.type.startsWith('image/')) continue;
+    e.preventDefault();
+
+    const blob = item.getAsFile();
+    if (!blob) return;
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const src = ev.target.result; // data URL
+      const img = new Image();
+      img.onload = () => {
+        imageCache[src] = img;
+
+        // 정규화 크기 (최대 60%, 비율 유지)
+        let nw = img.naturalWidth  / drawCanvas.width;
+        let nh = img.naturalHeight / drawCanvas.height;
+        const maxDim = 0.6;
+        if (nw > maxDim || nh > maxDim) {
+          const scale = maxDim / Math.max(nw, nh);
+          nw *= scale; nh *= scale;
+        }
+        // 캔버스 중앙 배치
+        const nx = (1 - nw) / 2;
+        const ny = (1 - nh) / 2;
+
+        StrokeStore.add(state.currentPage, {
+          type: 'image', src,
+          start: { x: nx, y: ny },
+          end:   { x: nx + nw, y: ny + nh },
+          points: [], lineWidth: 0.001, color: '',
+        });
+        CanvasManager.redraw();
+        // 붙여넣은 이미지를 바로 선택 가능하도록 select 도구로 전환
+        ToolController.applyTool('select');
+        SelectTool.select(StrokeStore.get(state.currentPage).length - 1);
+        showToast('이미지 붙여넣기 완료. 드래그로 이동, 모서리로 크기 조절');
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(blob);
+    return; // 첫 번째 이미지만 처리
+  }
+});
+
+// ══════════════════════════════════════════════════════════
 // Init
 // ══════════════════════════════════════════════════════════
 FileHandler.init();
 KeyboardHandler.init();
+PptHandler.init();
 </script>
 </body>
 </html>
