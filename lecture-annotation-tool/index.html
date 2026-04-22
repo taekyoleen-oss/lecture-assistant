@@ -250,6 +250,50 @@
       overflow: hidden;
       background: var(--canvas-bg);
     }
+
+    /* ── 우측 페이지 스크롤 레일 (일반 / 전체보기 공통) ───── */
+    #page-scroll-rail {
+      flex: 0 0 18px;
+      width: 18px;
+      min-height: 0;
+      align-self: stretch;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface2);
+      border-left: 1px solid var(--border);
+      position: relative;
+      z-index: 40;
+      touch-action: none;
+    }
+    #page-scroll-track {
+      flex: 1;
+      position: relative;
+      margin: 6px 3px;
+      border-radius: 4px;
+      background: var(--slider-track);
+      cursor: pointer;
+    }
+    #page-scroll-thumb {
+      position: absolute;
+      left: 0;
+      right: 0;
+      width: 100%;
+      border-radius: 4px;
+      background: var(--slider-thumb);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      cursor: grab;
+      pointer-events: auto;
+    }
+    #page-scroll-thumb:active { cursor: grabbing; }
+    body.presentation #page-scroll-rail {
+      position: fixed;
+      right: 56px;
+      top: 0;
+      width: 18px;
+      height: calc(100vh - 44px);
+      flex: none;
+      border-right: 1px solid var(--border2);
+    }
     #pdf-layer, #draw-layer {
       position: absolute;
       top: 50%; left: 50%;
@@ -441,7 +485,15 @@
       box-shadow: -4px 0 20px rgba(0,0,0,0.20);
     }
     body.presentation #bottom-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; }
-    body.presentation #canvas-wrapper { background: #000 !important; }
+    /*
+      전체보기에서 툴바(56px)+페이지레일(18px)은 fixed라 flex 폭에 안 잡힘.
+      래퍼가 전체 너비를 쓰면 PDF( innerWidth-74 기준 렌더 )가 가운데 정렬될 때 오른쪽이 잘림 → 우측 여백으로 가용 폭을 맞춤.
+      값은 스크립트의 RIGHT_CHROME_PX(56+18)와 동일해야 함.
+    */
+    body.presentation #canvas-wrapper {
+      background: #000 !important;
+      margin-right: 74px;
+    }
 
     .overlay-nav {
       position: fixed; top: 50%;
@@ -646,6 +698,13 @@
       <canvas id="draw-layer"></canvas>
     </div>
 
+    <!-- 우측 페이지 스크롤(슬라이드 이동) -->
+    <div id="page-scroll-rail" title="페이지 이동 · 클릭·드래그·휠" aria-label="페이지 스크롤">
+      <div id="page-scroll-track">
+        <div id="page-scroll-thumb"></div>
+      </div>
+    </div>
+
     <!-- 전체보기 중 오버레이 이전/다음 버튼 -->
     <button class="overlay-nav" id="overlay-prev" title="이전 슬라이드">&#8249;</button>
     <button class="overlay-nav" id="overlay-next" title="다음 슬라이드">&#8250;</button>
@@ -840,6 +899,13 @@ const savePngBtn     = $('save-png-btn');
 const presentBtn     = $('present-btn');
 const overlayPrev    = $('overlay-prev');
 const overlayNext    = $('overlay-next');
+const pageScrollRail   = $('page-scroll-rail');
+const pageScrollTrack  = $('page-scroll-track');
+const pageScrollThumb  = $('page-scroll-thumb');
+const canvasWrapper    = $('canvas-wrapper');
+
+/** 툴바(56) + 페이지 레일(18) — PDF 스케일 계산용 */
+const RIGHT_CHROME_PX = 56 + 18;
 const thicknessSlider = $('thickness-slider');
 const toastEl        = $('toast');
 const downloadPdfBtn = $('download-pdf-btn');
@@ -920,11 +986,10 @@ const PDFRenderer = {
   },
 
   async renderAllPages() {
-    const toolbarW = document.body.classList.contains('presentation') ? 56 : 56;
     const bottomH  = 44;
     const viewport0 = (await state.pdf.getPage(1)).getViewport({ scale: 1 });
     const scale = Math.min(
-      (window.innerWidth  - toolbarW) / viewport0.width,
+      (window.innerWidth  - RIGHT_CHROME_PX) / viewport0.width,
       (window.innerHeight - bottomH)  / viewport0.height
     );
 
@@ -1643,6 +1708,90 @@ function showTextInput(x, y) {
 }
 
 // ══════════════════════════════════════════════════════════
+// 우측 페이지 스크롤 레일 (마우스로 슬라이드 이동)
+// ══════════════════════════════════════════════════════════
+const PageScrollRail = {
+  _dragging: false,
+
+  clientYToPage(clientY) {
+    if (!state.pdf || state.totalPages < 1) return state.currentPage;
+    const rect = pageScrollTrack.getBoundingClientRect();
+    const H = rect.height;
+    if (H <= 0) return state.currentPage;
+    const N = state.totalPages;
+    if (N <= 1) return 1;
+    const tt = Math.min(1 - 1e-9, Math.max(0, (clientY - rect.top) / H));
+    return Math.min(N, Math.max(1, 1 + Math.floor(tt * N)));
+  },
+
+  syncThumb() {
+    if (!state.pdf || !pageScrollTrack || !pageScrollThumb) return;
+    const H = pageScrollTrack.clientHeight;
+    const N = state.totalPages;
+    if (H < 1 || N < 1) return;
+    const thumbH = N === 1 ? H : Math.max(24, H / N);
+    const maxTop = Math.max(0, H - thumbH);
+    const top = N === 1 ? 0 : (maxTop * (state.currentPage - 1)) / (N - 1);
+    pageScrollThumb.style.height = `${thumbH}px`;
+    pageScrollThumb.style.top = `${top}px`;
+  },
+
+  init() {
+    pageScrollTrack.addEventListener('pointerdown', e => {
+      if (!state.pdf || e.button !== 0) return;
+      if (e.target === pageScrollThumb) return;
+      e.preventDefault();
+      goToPage(PageScrollRail.clientYToPage(e.clientY));
+    });
+
+    pageScrollThumb.addEventListener('pointerdown', e => {
+      if (!state.pdf || e.button !== 0) return;
+      e.stopPropagation();
+      PageScrollRail._dragging = true;
+      pageScrollThumb.setPointerCapture(e.pointerId);
+      pageScrollThumb.style.cursor = 'grabbing';
+    });
+
+    pageScrollThumb.addEventListener('pointermove', e => {
+      if (!PageScrollRail._dragging) return;
+      goToPage(PageScrollRail.clientYToPage(e.clientY));
+    });
+
+    const endDrag = e => {
+      if (!PageScrollRail._dragging) return;
+      PageScrollRail._dragging = false;
+      try { pageScrollThumb.releasePointerCapture(e.pointerId); } catch (_) {}
+      pageScrollThumb.style.cursor = 'grab';
+    };
+    pageScrollThumb.addEventListener('pointerup', endDrag);
+    pageScrollThumb.addEventListener('pointercancel', endDrag);
+
+    const wheelToPage = e => {
+      if (!state.pdf || !appEl.classList.contains('visible')) return;
+      if (e.ctrlKey || e.metaKey) return;
+      const dy = e.deltaY;
+      const dx = e.deltaX;
+      const d = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+      if (d === 0) return;
+      e.preventDefault();
+      if (d > 0) goToPage(state.currentPage + 1);
+      else goToPage(state.currentPage - 1);
+    };
+    pageScrollRail.addEventListener('wheel', wheelToPage, { passive: false });
+    canvasWrapper.addEventListener('wheel', wheelToPage, { passive: false });
+
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => PageScrollRail.syncThumb()).observe(pageScrollTrack);
+    }
+
+    const onLayout = () => { requestAnimationFrame(() => PageScrollRail.syncThumb()); };
+    ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(ev => {
+      document.addEventListener(ev, onLayout);
+    });
+  },
+};
+
+// ══════════════════════════════════════════════════════════
 // 슬라이드 이동
 // ══════════════════════════════════════════════════════════
 function goToPage(n) {
@@ -1660,6 +1809,7 @@ function updatePageUI() {
   nextBtn.disabled = state.currentPage >= state.totalPages;
   overlayPrev.disabled = state.currentPage <= 1;
   overlayNext.disabled = state.currentPage >= state.totalPages;
+  PageScrollRail.syncThumb();
 }
 
 prevBtn.addEventListener('click', () => goToPage(state.currentPage - 1));
@@ -1725,6 +1875,7 @@ function updateOverlayNav() {
 
 presentBtn.addEventListener('click', () => {
   document.body.classList.contains('presentation') ? exitPresentationMode() : enterPresentationMode();
+  requestAnimationFrame(() => PageScrollRail.syncThumb());
 });
 overlayPrev.addEventListener('click', () => { goToPage(state.currentPage - 1); updateOverlayNav(); });
 overlayNext.addEventListener('click', () => { goToPage(state.currentPage + 1); updateOverlayNav(); });
@@ -1765,10 +1916,19 @@ const KeyboardHandler = {
   init() {
     document.addEventListener('keydown', e => {
       // 텍스트 input 포커스 중이면 내비게이션 무시 (input 자체에서 stopPropagation)
-      if (e.target.tagName === 'INPUT') return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       switch (e.key) {
-        case 'ArrowLeft':  goToPage(state.currentPage - 1); break;
-        case 'ArrowRight': goToPage(state.currentPage + 1); break;
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          if (state.pdf) e.preventDefault();
+          goToPage(state.currentPage - 1);
+          break;
+        case 'ArrowRight':
+        case 'ArrowDown':
+          if (state.pdf) e.preventDefault();
+          goToPage(state.currentPage + 1);
+          break;
         case 'Escape':
           if (document.body.classList.contains('presentation')) {
             exitPresentationMode();
@@ -2237,6 +2397,7 @@ document.addEventListener('paste', e => {
 // Init
 // ══════════════════════════════════════════════════════════
 FileHandler.init();
+PageScrollRail.init();
 KeyboardHandler.init();
 PptHandler.init();
 </script>
