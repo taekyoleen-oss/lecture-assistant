@@ -294,12 +294,79 @@
       flex: none;
       border-right: 1px solid var(--border2);
     }
-    #pdf-layer, #draw-layer {
+    #pdf-layer, #draw-layer, #laser-layer {
       position: absolute;
       top: 50%; left: 50%;
       transform: translate(-50%, -50%);
     }
     #draw-layer { cursor: crosshair; }
+    /* 레이저 오버레이 — 입력은 draw-layer가 받고, 시각 표시만 담당 */
+    #laser-layer { pointer-events: none; z-index: 45; }
+
+    /* ── 유틸 버튼 (실행취소/다시실행) ──────────────────────── */
+    .util-btn {
+      width: 40px; height: 40px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .util-btn:hover:not(:disabled) { background: var(--tool-hover); color: var(--text); }
+    .util-btn:disabled { opacity: 0.32; cursor: default; }
+
+    /* ── 강의 타이머 위젯 ──────────────────────────────────── */
+    #lecture-timer {
+      position: fixed;
+      top: 14px; left: 14px;
+      z-index: 1500;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 12px;
+      background: var(--toolbar-bg);
+      border: 1px solid var(--border2);
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      user-select: none;
+    }
+    #lecture-timer.visible { display: flex; }
+    #timer-display {
+      font-size: 30px; font-weight: 700;
+      letter-spacing: 1px;
+      text-align: center;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    #lecture-timer.done #timer-display { color: #FF3333; animation: timerBlink 0.9s steps(2) infinite; }
+    @keyframes timerBlink { 50% { opacity: 0.25; } }
+    #timer-controls { display: flex; gap: 4px; justify-content: center; }
+    #timer-controls button {
+      width: 32px; height: 30px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #timer-controls button:hover:not(:disabled) { background: var(--surface3); }
+    #timer-controls button:disabled { opacity: 0.32; cursor: default; }
+
+    /* ── 검은 / 흰 화면 오버레이 ───────────────────────────── */
+    #blank-overlay {
+      position: fixed; inset: 0;
+      z-index: 9000;
+      display: none;
+      cursor: pointer;
+    }
+    #blank-overlay.black { display: block; background: #000; }
+    #blank-overlay.white { display: block; background: #fff; }
 
     /* ── Toolbar ───────────────────────────────────────────── */
     #toolbar {
@@ -696,6 +763,7 @@
     <div id="canvas-wrapper">
       <canvas id="pdf-layer"></canvas>
       <canvas id="draw-layer"></canvas>
+      <canvas id="laser-layer"></canvas>
     </div>
 
     <!-- 우측 페이지 스크롤(슬라이드 이동) -->
@@ -715,6 +783,9 @@
     <div id="toolbar">
       <!-- 라이트/다크 전환 -->
       <button id="theme-toggle" title="라이트 / 다크 전환">🌙</button>
+      <!-- 강의 타이머 · 검은화면 -->
+      <button id="timer-btn" title="강의 타이머 표시/숨김">⏲️</button>
+      <button id="blank-btn" title="검은 화면 (B) · 흰 화면 (W)">⬛</button>
 
       <div class="toolbar-sep"></div>
 
@@ -730,9 +801,16 @@
       <button class="tool-btn"        data-tool="rect"      title="네모 (4)">⬜</button>
       <button class="tool-btn"        data-tool="text"      title="텍스트 (5)">T</button>
       <button class="tool-btn"        data-tool="highlight"  title="형광펜 (6)">▬</button>
+      <button class="tool-btn"        data-tool="laser"      title="레이저 포인터 (0)">🔴</button>
       <button class="tool-btn"        data-tool="screenshot" title="스크린샷 (8)">⬚</button>
       <button class="tool-btn"        data-tool="eraser"     title="지우개 (7)">⌫</button>
       <button id="clear-all-btn" title="현재 슬라이드 전체 지우기">🗑</button>
+
+      <div class="toolbar-sep"></div>
+
+      <!-- 실행취소 / 다시실행 -->
+      <button id="undo-btn" class="util-btn" title="실행취소 (Ctrl+Z)" disabled>↶</button>
+      <button id="redo-btn" class="util-btn" title="다시실행 (Ctrl+Shift+Z)" disabled>↷</button>
 
       <div class="toolbar-sep"></div>
 
@@ -846,6 +924,21 @@
 <!-- Toast -->
 <div id="toast"></div>
 
+<!-- 강의 타이머 위젯 -->
+<div id="lecture-timer" aria-label="강의 타이머">
+  <div id="timer-display">00:00</div>
+  <div id="timer-controls">
+    <button id="timer-mode"   title="스톱워치 / 카운트다운 전환">⏱️</button>
+    <button id="timer-minus"  title="-1분">−</button>
+    <button id="timer-plus"   title="+1분">＋</button>
+    <button id="timer-toggle" title="시작 / 일시정지">▶</button>
+    <button id="timer-reset"  title="리셋">↺</button>
+  </div>
+</div>
+
+<!-- 검은 / 흰 화면 오버레이 (B / W) -->
+<div id="blank-overlay" title="아무 곳이나 클릭하면 닫힙니다"></div>
+
 <script>
 // ══════════════════════════════════════════════════════════
 // PDF.js 워커 설정
@@ -889,6 +982,7 @@ const dropZone       = $('drop-zone');
 const fileInput      = $('file-input');
 const pdfCanvas      = $('pdf-layer');
 const drawCanvas     = $('draw-layer');
+const laserCanvas    = $('laser-layer');
 const toolbar        = $('toolbar');
 const clearBtn       = $('clear-btn');
 const prevBtn        = $('prev-btn');
@@ -913,6 +1007,7 @@ const pptModal       = $('ppt-modal');
 
 const pdfCtx  = pdfCanvas.getContext('2d');
 const drawCtx = drawCanvas.getContext('2d');
+const laserCtx = laserCanvas.getContext('2d');
 
 // ══════════════════════════════════════════════════════════
 // StrokeStore
@@ -923,6 +1018,51 @@ const StrokeStore = {
   clear(page)     { state.strokes[page] = []; },
   clearAll()      { state.strokes = {}; },
 };
+
+// ══════════════════════════════════════════════════════════
+// History — 실행취소 / 다시실행 (페이지별 스냅샷 방식)
+//   redraw()가 stroke 배열 전체를 재적용하는 구조라, 명령 스택보다
+//   "변경 직전 페이지 스냅샷"을 쌓는 방식이 가장 단순·견고하다.
+// ══════════════════════════════════════════════════════════
+const History = {
+  _undo: {},   // { [page]: string[] }  (JSON 스냅샷)
+  _redo: {},
+  _LIMIT: 60,
+  _snap(page) { return JSON.stringify(StrokeStore.get(page)); },
+
+  // 변경 "직전"에 호출 — 현재 페이지 상태를 undo 스택에 push, redo는 비운다
+  snapshot(page = state.currentPage) {
+    (this._undo[page] ||= []).push(this._snap(page));
+    if (this._undo[page].length > this._LIMIT) this._undo[page].shift();
+    this._redo[page] = [];
+    updateHistoryButtons();
+  },
+  undo(page = state.currentPage) {
+    const u = this._undo[page]; if (!u || !u.length) return;
+    (this._redo[page] ||= []).push(this._snap(page));
+    state.strokes[page] = JSON.parse(u.pop());
+    SelectTool.deselect();
+    CanvasManager.redraw();
+    updateHistoryButtons();
+  },
+  redo(page = state.currentPage) {
+    const r = this._redo[page]; if (!r || !r.length) return;
+    (this._undo[page] ||= []).push(this._snap(page));
+    state.strokes[page] = JSON.parse(r.pop());
+    SelectTool.deselect();
+    CanvasManager.redraw();
+    updateHistoryButtons();
+  },
+  resetAll() { this._undo = {}; this._redo = {}; updateHistoryButtons(); },
+  canUndo(page = state.currentPage) { return !!(this._undo[page]?.length); },
+  canRedo(page = state.currentPage) { return !!(this._redo[page]?.length); },
+};
+
+function updateHistoryButtons() {
+  const ub = $('undo-btn'), rb = $('redo-btn');
+  if (ub) ub.disabled = !History.canUndo();
+  if (rb) rb.disabled = !History.canRedo();
+}
 
 // ══════════════════════════════════════════════════════════
 // 좌표 정규화
@@ -969,6 +1109,7 @@ const PDFRenderer = {
       state.currentPage = 1;
       state.renderedPages = {};
       StrokeStore.clearAll();
+      History.resetAll();
 
       // Eager 렌더링 — 전체 페이지 미리 렌더
       await this.renderAllPages();
@@ -1012,6 +1153,9 @@ const PDFRenderer = {
     pdfCanvas.height = cached.height;
     drawCanvas.width  = cached.width;
     drawCanvas.height = cached.height;
+    laserCanvas.width  = cached.width;
+    laserCanvas.height = cached.height;
+    laserTrail = [];
 
     pdfCtx.drawImage(cached.canvas, 0, 0);
     CanvasManager.redraw();
@@ -1185,6 +1329,9 @@ const ToolController = {
     else if (tool === 'screenshot') drawCanvas.style.cursor = 'crosshair';
     else if (tool === 'select')    drawCanvas.style.cursor = 'default';
     else                           drawCanvas.style.cursor = 'crosshair';
+    // 레이저 포인터: 라이브 오버레이 루프 시작/정지
+    if (tool === 'laser') startLaser();
+    else stopLaser();
     // 선택 도구 해제 시 선택 상태 초기화
     if (tool !== 'select') SelectTool.deselect();
   },
@@ -1341,6 +1488,7 @@ const SelectTool = {
         const corner = bb ? this.hitHandle(nx, ny, bb) : null;
         if (corner) {
           this.mode         = 'resize';
+          this._snapped     = false;
           this.resizeCorner = corner;
           this.dragStart    = { x: nx, y: ny };
           this._origStroke  = JSON.parse(JSON.stringify(s));
@@ -1355,6 +1503,7 @@ const SelectTool = {
     if (idx >= 0) {
       this.select(idx);
       this.mode      = 'move';
+      this._snapped  = false;
       this.dragStart = { x: nx, y: ny };
       drawCanvas.style.cursor = 'move';
     } else {
@@ -1364,12 +1513,14 @@ const SelectTool = {
 
   onMouseMove(nx, ny) {
     if (this.mode === 'move' && this.dragStart) {
+      if (!this._snapped) { History.snapshot(); this._snapped = true; }
       const dx = nx - this.dragStart.x, dy = ny - this.dragStart.y;
       this.dragStart = { x: nx, y: ny };
       this._move(dx, dy);
       return;
     }
     if (this.mode === 'resize' && this._origBBox) {
+      if (!this._snapped) { History.snapshot(); this._snapped = true; }
       const ob = this._origBBox;
       const ow = ob.x2 - ob.x1, oh = ob.y2 - ob.y1;
       if (ow < 1e-6 || oh < 1e-6) return;
@@ -1524,6 +1675,140 @@ function _downloadBlob(blob) {
 }
 
 // ══════════════════════════════════════════════════════════
+// LaserPointer — 라이브 전용(저장 안 됨). 별도 오버레이 캔버스에
+//   발광 점 + 잔상(트레일)을 requestAnimationFrame으로 그린다.
+// ══════════════════════════════════════════════════════════
+let laserTrail = [];      // [{x, y, t}]  캔버스 픽셀 좌표 + 타임스탬프
+let laserRAF   = null;
+const LASER_LIFE = 450;   // ms — 잔상 수명
+
+function pushLaser(x, y) {
+  laserTrail.push({ x, y, t: performance.now() });
+  if (laserTrail.length > 60) laserTrail.shift();
+}
+
+function laserLoop() {
+  if (state.activeTool !== 'laser') { laserCtx.clearRect(0,0,laserCanvas.width,laserCanvas.height); laserRAF = null; return; }
+  const now = performance.now();
+  laserTrail = laserTrail.filter(p => now - p.t < LASER_LIFE);
+  laserCtx.clearRect(0, 0, laserCanvas.width, laserCanvas.height);
+
+  const R = Math.max(7, laserCanvas.height * 0.011);   // 빔프로젝터 가시성용 크기
+  laserCtx.save();
+  laserCtx.globalCompositeOperation = 'lighter';
+  for (const p of laserTrail) {
+    const a = 1 - (now - p.t) / LASER_LIFE;            // 시간에 따른 페이드
+    const grd = laserCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R * 2.2);
+    grd.addColorStop(0, `rgba(255,60,60,${0.55 * a})`);
+    grd.addColorStop(1, 'rgba(255,60,60,0)');
+    laserCtx.fillStyle = grd;
+    laserCtx.beginPath();
+    laserCtx.arc(p.x, p.y, R * 2.2, 0, Math.PI * 2);
+    laserCtx.fill();
+  }
+  // 코어(가장 최근 위치) — 흰 중심 + 빨강 링
+  const head = laserTrail[laserTrail.length - 1];
+  if (head) {
+    laserCtx.fillStyle = 'rgba(255,40,40,0.95)';
+    laserCtx.beginPath(); laserCtx.arc(head.x, head.y, R, 0, Math.PI * 2); laserCtx.fill();
+    laserCtx.fillStyle = 'rgba(255,255,255,0.95)';
+    laserCtx.beginPath(); laserCtx.arc(head.x, head.y, R * 0.4, 0, Math.PI * 2); laserCtx.fill();
+  }
+  laserCtx.restore();
+  laserRAF = requestAnimationFrame(laserLoop);
+}
+
+function startLaser() { if (!laserRAF) laserRAF = requestAnimationFrame(laserLoop); }
+function stopLaser()  { laserTrail = []; laserCtx.clearRect(0,0,laserCanvas.width,laserCanvas.height); }
+
+// ══════════════════════════════════════════════════════════
+// 검은 / 흰 화면 (B / W) — 청중 주의를 발표자로 돌리거나 임시 화이트보드
+// ══════════════════════════════════════════════════════════
+let blankMode = null;     // null | 'black' | 'white'
+const blankOverlay = $('blank-overlay');
+
+function setBlank(mode) {
+  blankMode = (blankMode === mode) ? null : mode;
+  blankOverlay.classList.toggle('black', blankMode === 'black');
+  blankOverlay.classList.toggle('white', blankMode === 'white');
+}
+blankOverlay.addEventListener('click', () => setBlank(null));
+
+// ══════════════════════════════════════════════════════════
+// LectureTimer — 스톱워치 / 카운트다운 (Date.now 기준, 드리프트 없음)
+// ══════════════════════════════════════════════════════════
+const Timer = {
+  mode: 'stopwatch',       // 'stopwatch' | 'countdown'
+  running: false,
+  elapsed: 0,              // 누적 ms (정지 상태 기준)
+  startTs: 0,
+  target: 5 * 60 * 1000,   // 카운트다운 목표 (기본 5분)
+  _int: null,
+
+  _base() { return this.running ? this.elapsed + (Date.now() - this.startTs) : this.elapsed; },
+  cur()   { return this.mode === 'countdown' ? this.target - this._base() : this._base(); },
+
+  fmt(ms) {
+    ms = Math.max(0, ms);
+    const s = Math.round(ms / 1000);
+    return `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(s % 60).padStart(2,'0')}`;
+  },
+  render() {
+    const c = this.cur();
+    $('timer-display').textContent = this.fmt(c);
+    const done = this.mode === 'countdown' && c <= 0;
+    $('lecture-timer').classList.toggle('done', done);
+    $('timer-toggle').textContent = this.running ? '⏸' : '▶';
+    const cd = this.mode !== 'countdown';
+    $('timer-minus').disabled = cd;
+    $('timer-plus').disabled  = cd;
+    $('timer-mode').textContent = this.mode === 'countdown' ? '⏳' : '⏱️';
+  },
+  _stopIfDone() {
+    if (this.mode === 'countdown' && this.running && this.cur() <= 0) {
+      this.elapsed = this.target; this.running = false;
+      clearInterval(this._int); this._int = null;
+    }
+  },
+  start() {
+    if (this.running) { // pause
+      this.elapsed = this._base(); this.running = false;
+      clearInterval(this._int); this._int = null;
+    } else {
+      this.startTs = Date.now(); this.running = true;
+      this._int = setInterval(() => { this._stopIfDone(); this.render(); }, 250);
+    }
+    this.render();
+  },
+  reset() {
+    this.running = false; this.elapsed = 0;
+    clearInterval(this._int); this._int = null;
+    this.render();
+  },
+  setMode() {
+    this.reset();
+    this.mode = this.mode === 'stopwatch' ? 'countdown' : 'stopwatch';
+    this.render();
+  },
+  adjust(min) {
+    if (this.mode !== 'countdown') return;
+    this.target = Math.max(60 * 1000, this.target + min * 60 * 1000);
+    if (!this.running) this.elapsed = 0;
+    this.render();
+  },
+  toggleVisible() { $('lecture-timer').classList.toggle('visible'); this.render(); },
+  init() {
+    $('timer-btn')   .addEventListener('click', () => this.toggleVisible());
+    $('timer-toggle').addEventListener('click', () => this.start());
+    $('timer-reset') .addEventListener('click', () => this.reset());
+    $('timer-mode')  .addEventListener('click', () => this.setMode());
+    $('timer-minus') .addEventListener('click', () => this.adjust(-1));
+    $('timer-plus')  .addEventListener('click', () => this.adjust(+1));
+    this.render();
+  },
+};
+
+// ══════════════════════════════════════════════════════════
 // Drawing Events
 // ══════════════════════════════════════════════════════════
 let currentStroke = null;
@@ -1562,6 +1847,11 @@ drawCanvas.addEventListener('mousedown', e => {
     return;
   }
 
+  // 레이저는 라이브 표시 전용 — stroke를 만들지 않는다
+  if (state.activeTool === 'laser') return;
+
+  // 여기부터는 그리기 도구(펜·도형·형광펜·지우개) — 변경 직전 스냅샷
+  History.snapshot();
   state.isDrawing = true;
   const color = COLOR_MAP[state.activeColor] || state.activeColor;
   const lw    = nW(state.lineWidth);
@@ -1577,6 +1867,13 @@ drawCanvas.addEventListener('mousedown', e => {
 });
 
 drawCanvas.addEventListener('mousemove', e => {
+  // 레이저 포인터 — 마우스 위치를 트레일에 기록(누름 여부 무관)
+  if (state.activeTool === 'laser') {
+    const pos = getCanvasPos(e);
+    pushLaser(pos.x, pos.y);
+    return;
+  }
+
   // screenshot 드래그 미리보기
   if (state.activeTool === 'screenshot' && screenshotStart) {
     const pos = getCanvasPos(e);
@@ -1685,6 +1982,7 @@ function showTextInput(x, y) {
   const confirm = () => {
     const txt = input.value.trim();
     if (txt) {
+      History.snapshot();
       StrokeStore.add(state.currentPage, {
         type: 'text',
         color: COLOR_MAP[state.activeColor] || state.activeColor,
@@ -1841,11 +2139,13 @@ pageInput.addEventListener('keydown', e => {
 // Clear & PNG Save
 // ══════════════════════════════════════════════════════════
 clearBtn.addEventListener('click', () => {
+  if (StrokeStore.get(state.currentPage).length) History.snapshot();
   StrokeStore.clear(state.currentPage);
   CanvasManager.redraw();
 });
 
 $('clear-all-btn').addEventListener('click', () => {
+  if (StrokeStore.get(state.currentPage).length) History.snapshot();
   StrokeStore.clear(state.currentPage);
   CanvasManager.redraw();
 });
@@ -1930,9 +2230,11 @@ const KeyboardHandler = {
           goToPage(state.currentPage + 1);
           break;
         case 'Escape':
+          if (blankMode) { setBlank(null); break; }       // 블랭크 먼저 해제
           if (document.body.classList.contains('presentation')) {
             exitPresentationMode();
           } else {
+            if (StrokeStore.get(state.currentPage).length) History.snapshot();
             StrokeStore.clear(state.currentPage);
             CanvasManager.redraw();
           }
@@ -1946,9 +2248,23 @@ const KeyboardHandler = {
         case '7': ToolController.applyTool('eraser');     break;
         case '8': ToolController.applyTool('screenshot'); break;
         case '9': ToolController.applyTool('select');     break;
+        case '0': ToolController.applyTool('laser');      break;
+        case 'b': case 'B': setBlank('black'); e.preventDefault(); break;
+        case 'w': case 'W': setBlank('white'); e.preventDefault(); break;
+        case 't': case 'T': Timer.toggleVisible();        break;
+        case 'z': case 'Z':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            e.shiftKey ? History.redo() : History.undo();
+          }
+          break;
+        case 'y': case 'Y':
+          if (e.ctrlKey || e.metaKey) { e.preventDefault(); History.redo(); }
+          break;
         case 'Delete':
         case 'Backspace':
           if (state.activeTool === 'select' && SelectTool.selectedIdx >= 0) {
+            History.snapshot();
             const strokes = StrokeStore.get(state.currentPage);
             strokes.splice(SelectTool.selectedIdx, 1);
             SelectTool.deselect();
@@ -1973,6 +2289,7 @@ const KeyboardHandler = {
             if (copy.points) copy.points = copy.points.map(sh);
             if (copy.start)  copy.start  = sh(copy.start);
             if (copy.end)    copy.end    = sh(copy.end);
+            History.snapshot();
             StrokeStore.add(state.currentPage, copy);
             // 붙여넣은 개체를 바로 선택
             ToolController.applyTool('select');
@@ -2374,6 +2691,7 @@ document.addEventListener('paste', e => {
         const nx = (1 - nw) / 2;
         const ny = (1 - nh) / 2;
 
+        History.snapshot();
         StrokeStore.add(state.currentPage, {
           type: 'image', src,
           start: { x: nx, y: ny },
@@ -2400,6 +2718,14 @@ FileHandler.init();
 PageScrollRail.init();
 KeyboardHandler.init();
 PptHandler.init();
+Timer.init();
+
+// 실행취소 / 다시실행 버튼
+$('undo-btn').addEventListener('click', () => History.undo());
+$('redo-btn').addEventListener('click', () => History.redo());
+// 검은 화면 토글 버튼 (흰 화면은 W 키)
+$('blank-btn').addEventListener('click', () => setBlank('black'));
+updateHistoryButtons();
 </script>
 </body>
 </html>
