@@ -1,3 +1,7 @@
 
 # Playwright MCP 임시 산출물
 .playwright-mcp/
+
+# 하네스 파이프라인 중간 산출물 (계획·QA/UX 리포트)
+lecture-annotation-tool/_workspace/
+lecture-annotation-tool/_workspace_prev/
