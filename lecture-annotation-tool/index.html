@@ -226,6 +226,14 @@
       font-size: 12px; color: var(--text);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    /* 항목이 0개여도 섹션을 띄워 기능 존재를 알린다(FSA 지원 브라우저 한정) */
+    .recent-empty {
+      padding: 16px 12px;
+      font-size: 12px; line-height: 1.6;
+      color: var(--text-dim);
+      text-align: center;
+      white-space: pre-line;   /* 안내 문구 2줄 */
+    }
     .recent-time { flex: 0 0 auto; font-size: 11px; color: var(--text-muted); }
     .recent-del {
       flex: 0 0 auto;
@@ -251,6 +259,12 @@
     #vibe-footer a    { font-size: 13px; color: #0891B2; text-decoration: none; }
     #vibe-footer a:hover { color: #0E7490; }
     #vibe-footer .sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+    /* 캐시/스테일 탭 판별용 버전 표식 — absolute라 푸터 높이(≈108px)를 늘리지 않는다 */
+    #app-version {
+      position: absolute;
+      right: 12px; bottom: 8px;
+      font-size: 10px; color: var(--text-dim);
+    }
 
     /* ── Loading Overlay ───────────────────────────────────── */
     #loading-overlay {
@@ -569,7 +583,7 @@
       outline: none;
     }
 
-    #save-png-btn, #download-pdf-btn, #add-pdf-btn {
+    #save-png-btn, #download-pdf-btn, #add-pdf-btn, #close-pdf-btn {
       background: transparent;
       border: 1px solid var(--border2);
       border-radius: 6px;
@@ -586,6 +600,10 @@
     #download-pdf-btn.visible { display: inline-block; }
     #download-pdf-btn:hover { background: rgba(132,204,22,0.10); color: #65a30d; border-color: #84CC16; }
     [data-theme="dark"] #download-pdf-btn:hover { color: #84CC16; }
+    /* 위험 액션 — clear-btn과 같은 빨강 hover. 고빈도 버튼(PREV/NEXT·전체보기)과
+       오클릭 거리를 두려고 바 끝으로 밀고 gap(16px)에 여백을 더 준다. */
+    #close-pdf-btn        { margin-left: 16px; }
+    #close-pdf-btn:hover  { background: rgba(239,68,68,0.10); color: #ef4444; border-color: #ef4444; }
 
     #present-btn {
       background: rgba(59,130,246,0.10);
@@ -808,6 +826,7 @@
       🚀 바이브코딩랩 방문하기
     </a>
     <p class="sub">vibecodinglab.ai.kr</p>
+    <div id="app-version"></div>
   </footer>
 </div>
 
@@ -905,6 +924,7 @@
     <button id="add-pdf-btn" title="현재 슬라이드 뒤에 PDF 이어 붙이기">➕ PDF 추가</button>
     <button id="save-png-btn">💾 PNG 저장</button>
     <button id="download-pdf-btn" title="현재 페이지가 속한 PDF 다운로드">⬇️ PDF 저장</button>
+    <button id="close-pdf-btn" title="현재 PDF를 닫고 시작 화면으로 (주석도 함께 삭제)">✕ 닫기</button>
   </div>
 </div>
 
@@ -1000,6 +1020,10 @@
 <div id="blank-overlay" title="아무 곳이나 클릭하면 닫힙니다"></div>
 
 <script>
+// 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
+const APP_VERSION = '2026-09-05.2';
+console.log('[lecture-annotation-tool] v' + APP_VERSION);
+
 // ══════════════════════════════════════════════════════════
 // PDF.js 워커 설정
 // ══════════════════════════════════════════════════════════
@@ -2338,11 +2362,48 @@ $('clear-all-btn').addEventListener('click', () => {
   showToast('모든 슬라이드의 주석을 지웠습니다.');
 });
 
+// ✕ 닫기 — 덱 전체를 버리고 IDLE로 복귀. 도구·색·두께·테마(localStorage)는 유지하고
+// ToolController는 재초기화하지 않는다(state._toolInited 유지 = 리스너 중복 등록 방지).
+function closeDeck() {
+  const annotated = Object.values(state.strokes).filter(a => a && a.length).length;
+  if (annotated && !confirm(`주석이 있는 페이지 ${annotated}개가 삭제됩니다. 닫을까요?`)) return;
+
+  // 상태를 먼저 비운다 — 그래야 아래 exitPresentationMode의 재렌더가 state.pdf 검사에서
+  // 스스로 걸러진다(순서를 뒤집으면 뒤늦은 showPage가 currentPage를 되돌려 놓는다).
+  SelectTool.deselect();
+  stopLaser();
+  state.docs = []; state.pdf = null; state.totalPages = 0; state.currentPage = 1;
+  state.renderedPages = {};
+  state.pdfBytes = null; state.pdfFilename = 'document.pdf';
+  state.copiedStroke = null;   // 닫은 덱의 개체를 새 덱에 붙여넣지 않는다
+  StrokeStore.clearAll();
+  History.resetAll();
+
+  if (isPresenting()) exitPresentationMode();
+  loadingOverlay.classList.remove('visible');
+  toastEl.className = '';
+  downloadPdfBtn.classList.remove('visible');
+  appEl.classList.remove('visible');
+  idleScreen.classList.remove('hidden');
+  RecentFiles.render();   // 방금 닫은 파일이 목록 맨 위 → 1클릭 재열기
+}
+$('close-pdf-btn').addEventListener('click', closeDeck);
+
 // ══════════════════════════════════════════════════════════
 // 전체보기 (Presentation Mode)
 // ══════════════════════════════════════════════════════════
 // 풀스크린 전환이 실패·미지원일 때는 fullscreenchange가 안 오므로 직접 재렌더
 const syncViewport = () => { if (state.pdf) PDFRenderer.rerenderForViewport(); };
+
+// 전체보기 전환 애니메이션이 늦게 끝나는 환경 보정 — 지정 시점에 캐시의 렌더 기준이
+// 현재 뷰포트와 어긋났는지만 보고 어긋났을 때만 재렌더한다(일치하면 비용 0).
+function syncViewportLater(...delays) {
+  for (const ms of delays) setTimeout(() => {
+    if (!state.pdf) return;
+    const cached = state.renderedPages[state.currentPage];
+    if (!cached || cached.vpKey !== viewportKey()) syncViewport();
+  }, ms);
+}
 
 function enterPresentationMode() {
   document.body.classList.add('presentation');
@@ -2361,6 +2422,7 @@ function enterPresentationMode() {
   const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
   if (req) req.call(el).catch(syncViewport);
   else syncViewport();
+  syncViewportLater(400, 1000);
 }
 
 function exitPresentationMode() {
@@ -2369,6 +2431,7 @@ function exitPresentationMode() {
   const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
   if (exit && document.fullscreenElement) exit.call(document).catch(syncViewport);
   else syncViewport();
+  syncViewportLater(400);   // 해제 애니메이션도 같은 이유로 1회 보정
 }
 
 // ── 전체보기 UI 자동 숨김 ──────────────────────────────────
@@ -2809,8 +2872,18 @@ const RecentFiles = {
     if (!HAS_FSA || !section) return;
 
     const all = await this._sorted();
-    section.classList.toggle('hidden', all.length === 0);
+    // FSA 지원 브라우저면 비어 있어도 섹션을 띄운다 — 안 그러면 처음 방문한 사용자가
+    // 기능 존재 자체를 모른다. (미지원 브라우저는 위 early return으로 계속 hidden)
+    section.classList.remove('hidden');
     list.textContent = '';
+
+    if (!all.length) {
+      const empty = document.createElement('div');
+      empty.className = 'recent-empty';
+      empty.textContent = '아직 최근 파일이 없습니다\n파일을 열면 다음부터 여기서 바로 열 수 있습니다';
+      list.appendChild(empty);
+      return;
+    }
 
     for (const entry of all) {
       const row = document.createElement('div');
@@ -3145,6 +3218,7 @@ document.addEventListener('paste', e => {
 // ══════════════════════════════════════════════════════════
 // Init
 // ══════════════════════════════════════════════════════════
+$('app-version').textContent = 'v' + APP_VERSION;
 FileHandler.init();
 RecentFiles.init();
 PageScrollRail.init();
