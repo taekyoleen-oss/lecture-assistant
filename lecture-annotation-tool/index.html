@@ -583,7 +583,7 @@
       outline: none;
     }
 
-    #save-png-btn, #download-pdf-btn, #add-pdf-btn, #close-pdf-btn {
+    #save-png-btn, #download-pdf-btn, #add-pdf-btn, #close-pdf-btn, #save-pos-btn {
       background: transparent;
       border: 1px solid var(--border2);
       border-radius: 6px;
@@ -602,6 +602,8 @@
     [data-theme="dark"] #download-pdf-btn:hover { color: #84CC16; }
     /* 위험 액션 — clear-btn과 같은 빨강 hover. 고빈도 버튼(PREV/NEXT·전체보기)과
        오클릭 거리를 두려고 바 끝으로 밀고 gap(16px)에 여백을 더 준다. */
+    #save-pos-btn:hover   { background: rgba(245,158,11,0.10); color: #b45309; border-color: #f59e0b; }
+    [data-theme="dark"] #save-pos-btn:hover { color: #fbbf24; }
     #close-pdf-btn        { margin-left: 16px; }
     #close-pdf-btn:hover  { background: rgba(239,68,68,0.10); color: #ef4444; border-color: #ef4444; }
 
@@ -814,9 +816,9 @@
   </div>
   <input type="file" id="file-input" accept=".pdf,.ppt,.pptx" multiple />
 
-  <!-- 최근 파일 — FSA 미지원 브라우저에서는 계속 hidden -->
+  <!-- 저장된 강의 — FSA 미지원 브라우저에서는 계속 hidden -->
   <div id="recent-section" class="hidden">
-    <div class="recent-title">최근 파일</div>
+    <div class="recent-title">저장된 강의</div>
     <div id="recent-list"></div>
   </div>
 
@@ -924,6 +926,7 @@
     <button id="add-pdf-btn" title="현재 슬라이드 뒤에 PDF 이어 붙이기">➕ PDF 추가</button>
     <button id="save-png-btn">💾 PNG 저장</button>
     <button id="download-pdf-btn" title="현재 페이지가 속한 PDF 다운로드">⬇️ PDF 저장</button>
+    <button id="save-pos-btn" title="현재 파일과 페이지를 이름 붙여 저장">📌 위치 저장</button>
     <button id="close-pdf-btn" title="현재 PDF를 닫고 시작 화면으로 (주석도 함께 삭제)">✕ 닫기</button>
   </div>
 </div>
@@ -1021,7 +1024,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-05.2';
+const APP_VERSION = '2026-09-05.3';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // ══════════════════════════════════════════════════════════
@@ -1054,6 +1057,7 @@ const state = {
   pdfBytes: null,
   pdfFilename: 'document.pdf',
   copiedStroke: null,   // 내부 클립보드 (Ctrl+C로 복사된 개체)
+  handles: null,        // 현재 덱의 FileSystemFileHandle[] — 위치 저장에 필요(없으면 저장 불가)
   _toolInited: false,   // ToolController.init 중복 방지
 };
 
@@ -1226,6 +1230,9 @@ const PDFRenderer = {
     $('loading-text').textContent = files.length > 1 ? `PDF ${files.length}개 불러오는 중...` : 'PDF 로딩 중...';
     loadingOverlay.classList.add('visible');
     try {
+      // 덱 구성이 바뀌면 보관 중인 핸들은 더 이상 이 덱을 설명하지 못한다.
+      // (append는 핸들 없이 이어 붙이므로 무효, 새 로드는 성공 후 호출부가 다시 채운다)
+      state.handles = null;
       if (!append) {
         state.docs = [];
         state.renderedPages = {};
@@ -2376,6 +2383,7 @@ function closeDeck() {
   state.renderedPages = {};
   state.pdfBytes = null; state.pdfFilename = 'document.pdf';
   state.copiedStroke = null;   // 닫은 덱의 개체를 새 덱에 붙여넣지 않는다
+  state.handles = null;
   StrokeStore.clearAll();
   History.resetAll();
 
@@ -2388,6 +2396,7 @@ function closeDeck() {
   RecentFiles.render();   // 방금 닫은 파일이 목록 맨 위 → 1클릭 재열기
 }
 $('close-pdf-btn').addEventListener('click', closeDeck);
+$('save-pos-btn') .addEventListener('click', () => RecentFiles.save());
 
 // ══════════════════════════════════════════════════════════
 // 전체보기 (Presentation Mode)
@@ -2768,13 +2777,14 @@ const PptHandler = {
 };
 
 // ══════════════════════════════════════════════════════════
-// RecentFiles — 최근 사용 파일 로컬 재열기 (File System Access API)
+// RecentFiles — 저장된 강의(북마크): 덱 + 강의 위치(페이지)를 이름 붙여 보관
 //   핸들을 IndexedDB에 그대로 저장(Chromium은 structured clone 지원)해서
 //   다음 방문 때 권한만 다시 받고 로컬 파일을 직접 연다.
+//   여는 것만으로는 기록하지 않는다 — 📌 위치 저장을 누른 항목(saved:true)만 남는다.
+//   상한을 두지 않는다 — 사용자가 이름 붙여 저장한 항목을 말없이 지우면 안 된다.
 //   FSA 미지원 브라우저에서는 모든 진입점이 no-op → 기존 동작 그대로.
 // ══════════════════════════════════════════════════════════
 const HAS_FSA     = typeof window.showOpenFilePicker === 'function';
-const RECENT_MAX  = 8;
 
 // IndexedDB 최소 Promise 래퍼 (DB: lat_recent / store: entries)
 const RecentDB = {
@@ -2814,22 +2824,36 @@ function recentTimeLabel(t) {
 const RecentFiles = {
   init() { if (HAS_FSA) this.render(); },
 
+  // saved 필드가 없는 항목 = 예전 자동 기록분 → 목록에서 제외(별도 마이그레이션 불필요)
   async _sorted() {
-    try { return (await RecentDB.all()).sort((a, b) => b.time - a.time); }
+    try { return (await RecentDB.all()).filter(e => e.saved).sort((a, b) => b.time - a.time); }
     catch (e) { console.warn('recent: read failed', e); return []; }
   },
 
-  // 로드 성공 후 기록. 파일명 집합이 같으면 같은 id → 시간만 갱신(중복 생성 없음).
-  async record(names, handles) {
-    if (!HAS_FSA || !handles || !handles.length) return;
+  // 📌 현재 덱 + 현재 페이지를 이름 붙여 저장. 파일명 집합이 같으면 같은 id → 덮어써서
+  // 페이지·이름·시각만 갱신된다(중복 생성 없음).
+  async save() {
+    if (!state.pdf) return;
+    if (!HAS_FSA || !state.handles) {
+      showToast('브라우저 파일 선택 창으로 연 파일만 저장할 수 있습니다.', true);
+      return;
+    }
+    const names = state.docs.map(d => d.name);
+    const id    = names.slice().sort().join(' ');
+    const prev  = (await this._sorted()).find(e => e.id === id);
+    const input = prompt('저장할 이름을 입력하세요:',
+                         prev ? prev.label : names[0].replace(/\.[^.]+$/, ''));
+    if (input === null) return;                    // 취소 → 저장하지 않는다
+    const label = input.trim() || names[0];
+    const page  = state.currentPage;
     try {
-      const id = names.slice().sort().join(' ');
-      await RecentDB.put({ id, names, handles, time: Date.now() });
-      const all = await this._sorted();
-      for (const e of all.slice(RECENT_MAX)) await RecentDB.del(e.id);
+      await RecentDB.put({ id, names, handles: state.handles, label, page,
+                           time: Date.now(), saved: true });
       this.render();
+      showToast(`저장했습니다 — ${label} · ${page}페이지`);
     } catch (e) {
-      console.warn('recent: save failed', e);   // 핸들 clone 미지원 등 — 조용히 포기
+      console.warn('bookmark: save failed', e);   // 핸들 clone 미지원 등
+      showToast('저장에 실패했습니다.', true);
     }
   },
 
@@ -2851,9 +2875,8 @@ const RecentFiles = {
       }
       const files = await Promise.all(entry.handles.map(h => h.getFile()));
       if (await PDFRenderer.loadFiles(files, { append: false })) {
-        entry.time = Date.now();
-        await RecentDB.put(entry);
-        this.render();
+        state.handles = entry.handles;    // 연 직후 바로 다시 위치 저장할 수 있게
+        goToPage(entry.page || 1);        // 파일이 바뀌어 범위를 넘으면 goToPage가 클램프
       }
     } catch (e) {
       if (e.name === 'NotFoundError') {
@@ -2880,7 +2903,7 @@ const RecentFiles = {
     if (!all.length) {
       const empty = document.createElement('div');
       empty.className = 'recent-empty';
-      empty.textContent = '아직 최근 파일이 없습니다\n파일을 열면 다음부터 여기서 바로 열 수 있습니다';
+      empty.textContent = '저장된 강의가 없습니다\n강의 중 📌 위치 저장을 누르면 여기에 저장됩니다';
       list.appendChild(empty);
       return;
     }
@@ -2888,17 +2911,15 @@ const RecentFiles = {
     for (const entry of all) {
       const row = document.createElement('div');
       row.className = 'recent-item';
-      row.title = entry.names.join(', ');
+      row.title = entry.names.join(', ');   // 어떤 파일로 저장했는지
 
       const name = document.createElement('span');
       name.className = 'recent-name';
-      name.textContent = entry.names.length > 1
-        ? `${entry.names[0]} 외 ${entry.names.length - 1}개`
-        : entry.names[0];
+      name.textContent = entry.label;
 
       const time = document.createElement('span');
       time.className = 'recent-time';
-      time.textContent = recentTimeLabel(entry.time);
+      time.textContent = `${entry.page}페이지 · ${recentTimeLabel(entry.time)}`;
 
       const del = document.createElement('button');
       del.className = 'recent-del';
@@ -3010,7 +3031,8 @@ const FileHandler = {
     if (!pdfs.length) { showToast('PDF 또는 PPT/PPTX 파일만 지원합니다.', true); return; }
     if (pdfs.length < files.length) showToast(`PDF ${pdfs.length}개만 불러옵니다(다른 형식 제외).`);
     if (await PDFRenderer.loadFiles(pdfs, { append: false })) {
-      if (pairs.every(p => p.h)) RecentFiles.record(pdfs.map(f => f.name), pairs.map(p => p.h));
+      // 여는 것만으로는 목록에 남기지 않는다 — 핸들만 보관했다가 📌 위치 저장 때 쓴다
+      if (pairs.every(p => p.h)) state.handles = pairs.map(p => p.h);
     }
   },
 };
