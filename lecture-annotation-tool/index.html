@@ -679,13 +679,13 @@
     #remain-counter {
       position: fixed;
       left: 14px; bottom: 12px;
-      font-size: 21px;
+      font-size: 15px;
       font-weight: 400;
-      color: rgba(255,255,255,0.92);
-      background: rgba(0,0,0,0.55);
+      color: rgba(255,255,255,0.72);
+      background: rgba(0,0,0,0.42);
       backdrop-filter: blur(3px);
-      padding: 5px 14px;
-      border-radius: 8px;
+      padding: 3px 10px;
+      border-radius: 6px;
       pointer-events: none;
       z-index: 200;
       display: none;
@@ -1054,7 +1054,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-12.4';
+const APP_VERSION = '2026-09-12.5';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // ══════════════════════════════════════════════════════════
@@ -1177,6 +1177,8 @@ const History = {
     CanvasManager.redraw();
     updateHistoryButtons();
   },
+  // 취소된 동작 — 직전 snapshot을 되돌린다(예: 클릭으로 페이지만 넘겨 stroke를 버릴 때)
+  dropSnapshot(page = state.currentPage) { this._undo[page]?.pop(); updateHistoryButtons(); },
   resetAll() { this._undo = {}; this._redo = {}; updateHistoryButtons(); },
   canUndo(page = state.currentPage) { return !!(this._undo[page]?.length); },
   canRedo(page = state.currentPage) { return !!(this._redo[page]?.length); },
@@ -2112,19 +2114,29 @@ drawCanvas.addEventListener('mousedown', e => {
   };
 });
 
-// 전체보기 + 중립 도구('none')일 때만 슬라이드 좌클릭 = 다음 페이지.
-// 도구가 활성이면 드로잉이 우선이고(그리다 페이지가 넘어가면 안 된다), 드래그(5px 초과)
-// 와 우클릭도 제외한다. 캔버스에만 걸어 두므로 툴바·하단바·블랭크 오버레이는 무관.
+// 전체보기에서 "깨끗한 클릭"(이동 5px 미만) = 다음 페이지 — PowerPoint와 같은 감각.
+// 드래그는 그대로 그리기다. 클릭이 의미 있는 도구(text=입력창, select=선택,
+// screenshot=영역 시작)만 제외하고, 나머지 도구는 어차피 무이동 클릭으로는 보이는
+// 것을 만들지 못한다(1점 펜·0크기 도형) → 그 퇴화 stroke는 아래에서 버린다.
+// 캔버스에만 걸어 두므로 툴바·하단바·블랭크 오버레이 클릭은 무관하다.
+const CLICK_ADVANCE_SKIP = ['text', 'select', 'screenshot'];
 let clickAdvanceFrom = null;
 drawCanvas.addEventListener('mousedown', e => {
-  clickAdvanceFrom = (e.button === 0 && isPresenting() && state.activeTool === 'none' && isInsideCanvas(e))
+  clickAdvanceFrom = (e.button === 0 && isPresenting() && isInsideCanvas(e) &&
+                      !CLICK_ADVANCE_SKIP.includes(state.activeTool))
     ? { x: e.clientX, y: e.clientY } : null;
 });
 drawCanvas.addEventListener('mouseup', e => {
   if (!clickAdvanceFrom) return;
   const moved = Math.hypot(e.clientX - clickAdvanceFrom.x, e.clientY - clickAdvanceFrom.y);
   clickAdvanceFrom = null;
-  if (moved < 5) goToPage(state.currentPage + 1);
+  if (moved >= 5) return;                      // 드래그 → 그리기에 맡긴다
+  if (state.isDrawing) {                       // 이 클릭이 시작시킨 퇴화 stroke 폐기
+    state.isDrawing = false;                   // (아래 mouseup 리스너의 커밋을 막는다)
+    currentStroke   = null;
+    History.dropSnapshot();                    // mousedown에서 잡은 스냅샷도 되돌린다
+  }
+  goToPage(state.currentPage + 1);             // showPage가 미리보기 잔상까지 재렌더
 });
 
 drawCanvas.addEventListener('mousemove', e => {
