@@ -672,13 +672,19 @@
     /* 종료 임박 페이지 카운터 — 전체보기에서 남은 페이지가 적을 때만 좌하단에 흐리게.
        .show 는 스크립트가 남은 페이지 수로 토글하고, 모드 게이트는 CSS가 맡는다
        (일반 모드에는 이 규칙이 없으므로 진입·해제 시 별도 처리가 필요 없다). */
+    /* 배경 필이 필수 — 16:9 화면 + 16:9 슬라이드면 캔버스가 뷰포트를 100% 채워
+       카운터가 흰 슬라이드 위에 놓인다. 이때 흰 글자+text-shadow만으로는 안 보인다.
+       글자 자체는 진하지 않게(400·15px) 두고, 옅은 어두운 필로만 대비를 확보한다. */
     #remain-counter {
       position: fixed;
       left: 14px; bottom: 12px;
       font-size: 15px;
       font-weight: 400;
-      color: rgba(255,255,255,0.45);
-      text-shadow: 0 1px 2px rgba(0,0,0,0.55);   /* 흰 슬라이드 위에서도 읽히게 */
+      color: rgba(255,255,255,0.80);
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(3px);
+      padding: 3px 10px;
+      border-radius: 6px;
       pointer-events: none;
       z-index: 200;
       display: none;
@@ -1045,7 +1051,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-12.1';
+const APP_VERSION = '2026-09-12.2';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // ══════════════════════════════════════════════════════════
