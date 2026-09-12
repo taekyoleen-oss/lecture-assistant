@@ -669,6 +669,24 @@
     /* 툴바가 나와 있을 땐 힌트가 겹치므로 비운다(힌트는 UI가 숨었을 때만 필요) */
     body.presentation.ui-right #esc-hint { opacity: 0; }
 
+    /* 종료 임박 페이지 카운터 — 전체보기에서 남은 페이지가 적을 때만 좌하단에 흐리게.
+       .show 는 스크립트가 남은 페이지 수로 토글하고, 모드 게이트는 CSS가 맡는다
+       (일반 모드에는 이 규칙이 없으므로 진입·해제 시 별도 처리가 필요 없다). */
+    #remain-counter {
+      position: fixed;
+      left: 14px; bottom: 12px;
+      font-size: 15px;
+      font-weight: 400;
+      color: rgba(255,255,255,0.45);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.55);   /* 흰 슬라이드 위에서도 읽히게 */
+      pointer-events: none;
+      z-index: 200;
+      display: none;
+    }
+    body.presentation #remain-counter.show { display: block; transition: opacity 0.25s ease; }
+    /* 하단바가 슬라이드 인 되면 겹치므로 비운다(#esc-hint와 같은 처리) */
+    body.presentation.ui-bottom #remain-counter { opacity: 0; }
+
     /* ── Toast ─────────────────────────────────────────────── */
     #toast {
       position: fixed;
@@ -859,6 +877,9 @@
     <!-- 전체보기 힌트 -->
     <div id="esc-hint">ESC 종료 · 우측 가장자리 = 도구 · 하단 = 페이지</div>
 
+    <!-- 종료 임박 페이지 카운터 (전체보기 · 남은 5페이지 이하) -->
+    <div id="remain-counter"></div>
+
     <!-- Toolbar -->
     <div id="toolbar">
       <!-- 라이트/다크 전환 -->
@@ -1024,7 +1045,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-05.3';
+const APP_VERSION = '2026-09-12.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // ══════════════════════════════════════════════════════════
@@ -1078,6 +1099,7 @@ const clearBtn       = $('clear-btn');
 const prevBtn        = $('prev-btn');
 const nextBtn        = $('next-btn');
 const pageCounter    = $('page-counter');
+const remainCounter  = $('remain-counter');
 const pageInput      = $('page-input');
 const savePngBtn     = $('save-png-btn');
 const presentBtn     = $('present-btn');
@@ -2316,6 +2338,9 @@ function goToPage(n) {
 
 function updatePageUI() {
   pageCounter.textContent = `${state.currentPage} / ${state.totalPages}`;
+  // 종료 임박 카운터 — 같은 포맷. 표시 여부는 CSS가 전체보기 여부로 한 번 더 거른다.
+  remainCounter.textContent = pageCounter.textContent;
+  remainCounter.classList.toggle('show', !!state.pdf && state.totalPages - state.currentPage <= 5);
   pageInput.max = state.totalPages;
   pageInput.value = state.currentPage;
   prevBtn.disabled = state.currentPage <= 1;
