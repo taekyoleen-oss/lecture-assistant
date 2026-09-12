@@ -674,24 +674,27 @@
        (일반 모드에는 이 규칙이 없으므로 진입·해제 시 별도 처리가 필요 없다). */
     /* 배경 필이 필수 — 16:9 화면 + 16:9 슬라이드면 캔버스가 뷰포트를 100% 채워
        카운터가 흰 슬라이드 위에 놓인다. 이때 흰 글자+text-shadow만으로는 안 보인다.
-       글자 자체는 진하지 않게(400·15px) 두고, 옅은 어두운 필로만 대비를 확보한다. */
+       굵기는 400 그대로 두고(요구: "진하지 않게"), 크기·밝기와 어두운 필로만
+       강의실 뒷자리에서도 읽히게 한다. */
     #remain-counter {
       position: fixed;
       left: 14px; bottom: 12px;
-      font-size: 15px;
+      font-size: 21px;
       font-weight: 400;
-      color: rgba(255,255,255,0.80);
+      color: rgba(255,255,255,0.92);
       background: rgba(0,0,0,0.55);
       backdrop-filter: blur(3px);
-      padding: 3px 10px;
-      border-radius: 6px;
+      padding: 5px 14px;
+      border-radius: 8px;
       pointer-events: none;
       z-index: 200;
       display: none;
     }
-    body.presentation #remain-counter.show { display: block; transition: opacity 0.25s ease; }
-    /* 하단바가 슬라이드 인 되면 겹치므로 비운다(#esc-hint와 같은 처리) */
-    body.presentation.ui-bottom #remain-counter { opacity: 0; }
+    body.presentation #remain-counter.show { display: block; transition: transform 0.25s ease; }
+    /* 하단바가 슬라이드 인 되면 겹치므로 바 위(44px)로 올린다 — 숨기지 않는다.
+       마우스가 하단 가장자리에 머무는 동안(전체보기 버튼을 막 누른 직후가 그렇다)
+       카운터가 계속 사라져 있으면 "안 보인다"가 되기 때문. */
+    body.presentation.ui-bottom #remain-counter { transform: translateY(-44px); }
 
     /* ── Toast ─────────────────────────────────────────────── */
     #toast {
@@ -1051,7 +1054,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-12.2';
+const APP_VERSION = '2026-09-12.3';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // ══════════════════════════════════════════════════════════
@@ -2559,7 +2562,12 @@ const KeyboardHandler = {
       // 텍스트 input 포커스 중이면 내비게이션 무시 (input 자체에서 stopPropagation)
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      switch (e.key) {
+      // 한글 IME가 켜져 있으면 e.key가 'ㄹ'·'ㅠ'·'ㅈ'·'ㅅ'로 들어와 글자 단축키가
+      // 전부 죽는다(한국인 강사 기본 환경). 물리 키(e.code)에서 영문자를 복원해
+      // switch 하나만 유지한다 — 분기를 늘리지 않으니 중복 실행 걱정이 없다.
+      // (숫자·화살표·Esc는 e.code가 KeyX가 아니므로 그대로 e.key를 탄다.)
+      const key = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : e.key;
+      switch (key) {
         case 'ArrowLeft':
         case 'ArrowUp':
           if (state.pdf) e.preventDefault();
