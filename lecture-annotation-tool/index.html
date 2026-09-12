@@ -1054,7 +1054,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-12.3';
+const APP_VERSION = '2026-09-12.4';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // ══════════════════════════════════════════════════════════
@@ -2112,6 +2112,21 @@ drawCanvas.addEventListener('mousedown', e => {
   };
 });
 
+// 전체보기 + 중립 도구('none')일 때만 슬라이드 좌클릭 = 다음 페이지.
+// 도구가 활성이면 드로잉이 우선이고(그리다 페이지가 넘어가면 안 된다), 드래그(5px 초과)
+// 와 우클릭도 제외한다. 캔버스에만 걸어 두므로 툴바·하단바·블랭크 오버레이는 무관.
+let clickAdvanceFrom = null;
+drawCanvas.addEventListener('mousedown', e => {
+  clickAdvanceFrom = (e.button === 0 && isPresenting() && state.activeTool === 'none' && isInsideCanvas(e))
+    ? { x: e.clientX, y: e.clientY } : null;
+});
+drawCanvas.addEventListener('mouseup', e => {
+  if (!clickAdvanceFrom) return;
+  const moved = Math.hypot(e.clientX - clickAdvanceFrom.x, e.clientY - clickAdvanceFrom.y);
+  clickAdvanceFrom = null;
+  if (moved < 5) goToPage(state.currentPage + 1);
+});
+
 drawCanvas.addEventListener('mousemove', e => {
   // 레이저 포인터 — 마우스 위치를 트레일에 기록(누름 여부 무관)
   if (state.activeTool === 'laser') {
@@ -2345,11 +2360,22 @@ function goToPage(n) {
   PDFRenderer.showPage(p);
 }
 
+/** 카운터를 뷰포트가 아니라 **슬라이드(캔버스) 왼쪽 하단 모서리**에 붙인다.
+    4:3 슬라이드 + 16:9 화면처럼 필러박스가 생겨도 검은 여백이 아닌 슬라이드 위에
+    겹쳐 보여야 한다. 캔버스 크기가 바뀌는 모든 시점(페이지 표시·모드 전환·리사이즈)
+    에서 다시 부른다. */
+function placeRemainCounter() {
+  const r = drawCanvas.getBoundingClientRect();
+  remainCounter.style.left   = Math.round(r.left + 14) + 'px';
+  remainCounter.style.bottom = Math.round(window.innerHeight - r.bottom + 14) + 'px';
+}
+
 function updatePageUI() {
   pageCounter.textContent = `${state.currentPage} / ${state.totalPages}`;
   // 종료 임박 카운터 — 같은 포맷. 표시 여부는 CSS가 전체보기 여부로 한 번 더 거른다.
   remainCounter.textContent = pageCounter.textContent;
   remainCounter.classList.toggle('show', !!state.pdf && state.totalPages - state.currentPage <= 5);
+  placeRemainCounter();
   pageInput.max = state.totalPages;
   pageInput.value = state.currentPage;
   prevBtn.disabled = state.currentPage <= 1;
@@ -2513,7 +2539,7 @@ document.addEventListener('mousemove', e => {
 // 전체보기 토글 — 버튼과 F 키가 같은 경로를 쓴다(전체화면 = 전체보기 단일 개념)
 function togglePresentation() {
   isPresenting() ? exitPresentationMode() : enterPresentationMode();
-  requestAnimationFrame(() => PageScrollRail.syncThumb());
+  requestAnimationFrame(() => { PageScrollRail.syncThumb(); placeRemainCounter(); });
 }
 presentBtn.addEventListener('click', togglePresentation);
 
@@ -2536,9 +2562,40 @@ presentBtn.addEventListener('click', togglePresentation);
 // innerWidth/Height 갱신보다 먼저 온다) 대비 — 기준이 그대로면 재렌더 없이 통과
 let viewportResizeT = null;
 window.addEventListener('resize', () => {
+  placeRemainCounter();
   clearTimeout(viewportResizeT);
-  viewportResizeT = setTimeout(syncViewport, 200);
+  viewportResizeT = setTimeout(() => { syncF11Presentation(); syncViewport(); placeRemainCounter(); }, 200);
 });
+
+// ── F11(브라우저 전체화면) 보정 ────────────────────────────
+// F11은 Fullscreen API 이벤트를 쏘지 않고 document.fullscreenElement도 null이라
+// presentation 클래스가 안 붙는다 → 자동 숨김·풀스크린 채움·카운터가 전부 죽는다.
+// 화면을 꽉 채운 상태가 감지되면 전체보기로 간주한다(최대화 창은 작업표시줄 때문에
+// innerHeight < screen.height라 오탐이 없다). 우리가 자동으로 켠 경우만 자동으로 끈다.
+const fullscreenMQ = window.matchMedia('(display-mode: fullscreen)');
+let autoPresent = false;
+// 크기 판정은 두 조건을 함께 본다: ① 뷰포트가 화면 전체와 같고 ② 브라우저 크롬이
+// 없다(innerHeight ≈ outerHeight). 최대화 창은 탭·주소창 때문에 ②에서 걸러진다.
+const looksFullscreen = () => fullscreenMQ.matches ||
+  (Math.abs(window.innerWidth  - screen.width)  <= 2 &&
+   Math.abs(window.innerHeight - screen.height) <= 2 &&
+   Math.abs(window.innerHeight - window.outerHeight) <= 2);
+function syncF11Presentation() {
+  const fs = looksFullscreen();
+  if (fs && state.pdf && !isPresenting()) {
+    autoPresent = true;
+    document.body.classList.add('presentation');
+    presentBtn.textContent = '✕ 전체보기 종료';
+    syncViewport();
+  } else if (!fs && autoPresent) {
+    autoPresent = false;
+    document.body.classList.remove('presentation');
+    presentBtn.textContent = '⤢ 전체보기';
+    syncViewport();
+  }
+  placeRemainCounter();
+}
+fullscreenMQ.addEventListener('change', syncF11Presentation);
 
 savePngBtn.addEventListener('click', () => {
   const off = document.createElement('canvas');
@@ -2649,6 +2706,16 @@ const KeyboardHandler = {
           break;
         case 'f': case 'F':
           togglePresentation();   // 전체화면 = 전체보기 (버튼과 동일 경로)
+          break;
+        // F11은 브라우저 전체화면으로 새 나가면 presentation 클래스가 안 붙어
+        // 자동 숨김·카운터가 죽는다 → 기본 동작을 막고 앱 전체보기로 대체한다.
+        case 'F11':
+          e.preventDefault();
+          togglePresentation();
+          break;
+        // 발표 리모컨의 Enter까지 커버 — 전체보기 여부와 무관하게 다음 페이지
+        case 'Enter':
+          if (state.pdf) { e.preventDefault(); goToPage(state.currentPage + 1); }
           break;
       }
     });
