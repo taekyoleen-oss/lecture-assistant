@@ -1094,7 +1094,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-16.1';
+const APP_VERSION = '2026-09-16.2';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // ══════════════════════════════════════════════════════════
@@ -3024,7 +3024,7 @@ const RecentFiles = {
       return;
     }
     const names = state.docs.map(d => d.name);
-    const id    = names.slice().sort().join(' ');
+    const id    = names.slice().sort().join('\0');
     const prev  = (await this._sorted()).find(e => e.id === id);
     const input = prompt('저장할 이름을 입력하세요:',
                          prev ? prev.label : names[0].replace(/\.[^.]+$/, ''));
@@ -3062,6 +3062,12 @@ const RecentFiles = {
       if (await PDFRenderer.loadFiles(files, { append: false })) {
         state.handles = entry.handles;    // 연 직후 바로 다시 위치 저장할 수 있게
         goToPage(entry.page || 1);        // 파일이 바뀌어 범위를 넘으면 goToPage가 클램프
+        // 최근 연 파일은 열 때마다 맨 위로. 북마크의 time은 화면에 "저장 시각"으로
+        // 표시되므로 건드리지 않는다(열었다고 갱신하면 표시가 거짓이 된다).
+        if (entry.saved === false) {
+          try { await RecentDB.put({ ...entry, time: Date.now() }); this.render(); }
+          catch (e) { console.warn('recent: touch failed', e); }
+        }
       }
     } catch (e) {
       if (e.name === 'NotFoundError') {
