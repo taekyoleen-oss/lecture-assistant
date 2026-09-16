@@ -193,25 +193,59 @@
 
     #file-input { display: none; }
 
-    /* ── 최근 파일 (File System Access API 지원 브라우저에서만 표시) ── */
-    #recent-section {
-      width: 480px;
+    /* ── 저장된 강의 / 최근 연 파일 (File System Access API 지원 브라우저에서만 표시) ── */
+    /* 2단 가로 배치. 스크롤 컨테이너는 계속 #idle-screen 하나뿐 — 여기에 overflow를 주지 않는다 */
+    #idle-lists {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
       flex: 0 0 auto;   /* 푸터 회피는 #idle-screen의 padding-bottom이 담당 */
     }
+    /* 760px(480+20+260)가 들어갈 여유가 없으면 세로로 스택 */
+    @media (max-width: 820px) {
+      #idle-lists { flex-direction: column; align-items: center; }
+    }
+
+    #recent-section {
+      width: 480px;
+      flex: 0 0 auto;
+    }
     #recent-section.hidden { display: none; }
+
+    /* 우측 "최근 연 파일" — 보조 목록이라 좌측보다 좁고 작게 */
+    #opened-section {
+      width: 260px;
+      flex: 0 0 auto;
+    }
+    #opened-section.hidden { display: none; }
+    #opened-list .recent-item { padding: 7px 10px; }
+    #opened-list .recent-name,
+    #opened-list .recent-time,
+    #opened-list .recent-empty { font-size: 11px; }
 
     .recent-title {
       font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
       color: var(--text-dim);
       margin: 0 4px 8px;
     }
-    /* 자체 스크롤을 두지 않는다 — 스크롤 컨테이너는 #idle-screen 하나뿐.
-       중첩 스크롤이면 안쪽만 끝까지 내려도 리스트 하단이 고정 푸터에 깔린다.
-       (최근 항목은 8개 상한이라 목록 높이는 최대 8×41 ≈ 328px로 유계) */
-    #recent-list {
+    #recent-list, #opened-list {
       border: 1px solid var(--border);
       border-radius: 10px;
       background: var(--surface);
+      /* 5행까지 보이고 그 이상은 목록 안에서 스크롤한다.
+         07 라운드 버그(= max-height만 주면 목록 박스 자체가 고정 푸터 아래로 깔려,
+         안쪽을 끝까지 내려도 마지막 행을 누를 수 없었다)를 막는 건 아래 calc()다.
+         462px = #idle-screen padding-bottom 132 + 드롭존 280 + gap 24 + 제목 14.67+8 + 여유
+         → 뷰포트가 낮으면 5행 상한 대신 calc()가 이겨서 박스 하단이 항상 푸터 위에서 끝난다.
+         하한 2행보다 더 낮은 뷰포트는 예전처럼 #idle-screen 페이지 스크롤로 폴백(도달 가능). */
+      overflow-y: auto;
+      scrollbar-gutter: stable;   /* 5개 경계에서 스크롤바가 생겨도 행 폭이 흔들리지 않게 */
+    }
+    #recent-list { max-height: max(84px, min(206px, calc(100vh - 462px))); }  /* 5 × 40.67 + 테두리 2 */
+    #opened-list { max-height: max(61px, min(149px, calc(100vh - 462px))); }  /* 5 × 29.33 + 테두리 2 */
+    #recent-list::-webkit-scrollbar, #opened-list::-webkit-scrollbar { width: 8px; }
+    #recent-list::-webkit-scrollbar-thumb, #opened-list::-webkit-scrollbar-thumb {
+      background: var(--border2); border-radius: 4px;
     }
     .recent-item {
       display: flex; align-items: center; gap: 10px;
@@ -843,10 +877,16 @@
   </div>
   <input type="file" id="file-input" accept=".pdf,.ppt,.pptx" multiple />
 
-  <!-- 저장된 강의 — FSA 미지원 브라우저에서는 계속 hidden -->
-  <div id="recent-section" class="hidden">
-    <div class="recent-title">저장된 강의</div>
-    <div id="recent-list"></div>
+  <!-- 좌: 저장된 강의(북마크) / 우: 최근 연 파일 — FSA 미지원 브라우저에서는 계속 hidden -->
+  <div id="idle-lists">
+    <div id="recent-section" class="hidden">
+      <div class="recent-title">저장된 강의</div>
+      <div id="recent-list"></div>
+    </div>
+    <div id="opened-section" class="hidden">
+      <div class="recent-title">최근 연 파일</div>
+      <div id="opened-list"></div>
+    </div>
   </div>
 
   <footer id="vibe-footer">
@@ -1054,7 +1094,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-12.5';
+const APP_VERSION = '2026-09-16.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // ══════════════════════════════════════════════════════════
@@ -2895,14 +2935,18 @@ const PptHandler = {
 };
 
 // ══════════════════════════════════════════════════════════
-// RecentFiles — 저장된 강의(북마크): 덱 + 강의 위치(페이지)를 이름 붙여 보관
+// RecentFiles — IDLE 화면의 두 목록을 한 스토어(entries)에서 관리한다.
+//   saved:true  = 저장된 강의(북마크). 📌 위치 저장으로만 생기고, 페이지까지 복원. 상한 없음
+//                 (사용자가 이름 붙여 저장한 항목을 말없이 지우면 안 된다).
+//   saved:false = 최근 연 파일. 파일을 열면 자동 기록되고 1페이지부터 연다. RECENT_MAX 회전.
+//   saved 없음  = 예전 자동 기록분(레거시) → 양쪽 모두에서 제외.
+//   id가 파일명 집합이라 같은 덱을 📌 저장하면 자동 기록분을 덮어쓴다(양쪽 동시 노출 없음).
 //   핸들을 IndexedDB에 그대로 저장(Chromium은 structured clone 지원)해서
 //   다음 방문 때 권한만 다시 받고 로컬 파일을 직접 연다.
-//   여는 것만으로는 기록하지 않는다 — 📌 위치 저장을 누른 항목(saved:true)만 남는다.
-//   상한을 두지 않는다 — 사용자가 이름 붙여 저장한 항목을 말없이 지우면 안 된다.
 //   FSA 미지원 브라우저에서는 모든 진입점이 no-op → 기존 동작 그대로.
 // ══════════════════════════════════════════════════════════
 const HAS_FSA     = typeof window.showOpenFilePicker === 'function';
+const RECENT_MAX  = 8;   // "최근 연 파일"만의 상한 (북마크는 무제한)
 
 // IndexedDB 최소 Promise 래퍼 (DB: lat_recent / store: entries)
 const RecentDB = {
@@ -2942,14 +2986,37 @@ function recentTimeLabel(t) {
 const RecentFiles = {
   init() { if (HAS_FSA) this.render(); },
 
-  // saved 필드가 없는 항목 = 예전 자동 기록분 → 목록에서 제외(별도 마이그레이션 불필요)
-  async _sorted() {
-    try { return (await RecentDB.all()).filter(e => e.saved).sort((a, b) => b.time - a.time); }
+  // saved 필드가 없는 항목 = 예전 자동 기록분 → 양쪽 목록 모두에서 제외(마이그레이션 불필요)
+  async _sorted(saved = true) {
+    try {
+      return (await RecentDB.all())
+        .filter(e => saved ? !!e.saved : e.saved === false)
+        .sort((a, b) => b.time - a.time);
+    }
     catch (e) { console.warn('recent: read failed', e); return []; }
   },
 
+  // 파일을 열었을 때의 자동 기록(saved:false). 같은 덱의 북마크가 있으면 기록하지 않는다
+  // — 한 파일이 양쪽에 동시에 뜨면 안 된다. 실패해도 로드 자체는 이미 끝났으므로 조용히 넘긴다.
+  async record(names, handles) {
+    if (!HAS_FSA) return;
+    const id = names.slice().sort().join('\0');
+    try {
+      const all = await RecentDB.all();
+      if (all.some(e => e.id === id && e.saved)) return;
+      await RecentDB.put({ id, names, handles, time: Date.now(), saved: false });
+      // 상한 초과분(오래된 것부터) 제거 — 방금 기록분을 뺀 나머지에서 RECENT_MAX-1개만 남긴다
+      const olds = all.filter(e => e.saved === false && e.id !== id)
+                      .sort((a, b) => b.time - a.time)
+                      .slice(RECENT_MAX - 1);
+      for (const o of olds) await RecentDB.del(o.id);
+      this.render();
+    } catch (e) { console.warn('recent: record failed', e); }
+  },
+
   // 📌 현재 덱 + 현재 페이지를 이름 붙여 저장. 파일명 집합이 같으면 같은 id → 덮어써서
-  // 페이지·이름·시각만 갱신된다(중복 생성 없음).
+  // 페이지·이름·시각만 갱신된다(중복 생성 없음). 같은 id의 자동 기록분(saved:false)도
+  // 이 덮어쓰기로 사라진다 — 한 파일이 양쪽 목록에 동시에 뜨지 않는다.
   async save() {
     if (!state.pdf) return;
     if (!HAS_FSA || !state.handles) {
@@ -3008,20 +3075,25 @@ const RecentFiles = {
   },
 
   async render() {
-    const section = $('recent-section');
-    const list    = $('recent-list');
-    if (!HAS_FSA || !section) return;
+    if (!HAS_FSA) return;
+    this._paint($('recent-section'), $('recent-list'), await this._sorted(true),  true);
+    this._paint($('opened-section'), $('opened-list'), (await this._sorted(false)).slice(0, RECENT_MAX), false);
+  },
 
-    const all = await this._sorted();
+  // saved: true=저장된 강의(이름·페이지·✕ 삭제) / false=최근 연 파일(파일명·시각, 8개 자동 회전)
+  _paint(section, list, all, saved) {
+    if (!section) return;
     // FSA 지원 브라우저면 비어 있어도 섹션을 띄운다 — 안 그러면 처음 방문한 사용자가
-    // 기능 존재 자체를 모른다. (미지원 브라우저는 위 early return으로 계속 hidden)
+    // 기능 존재 자체를 모른다. (미지원 브라우저는 render()의 early return으로 계속 hidden)
     section.classList.remove('hidden');
     list.textContent = '';
 
     if (!all.length) {
       const empty = document.createElement('div');
       empty.className = 'recent-empty';
-      empty.textContent = '저장된 강의가 없습니다\n강의 중 📌 위치 저장을 누르면 여기에 저장됩니다';
+      empty.textContent = saved
+        ? '저장된 강의가 없습니다\n강의 중 📌 위치 저장을 누르면 여기에 저장됩니다'
+        : '최근에 연 파일이 없습니다';
       list.appendChild(empty);
       return;
     }
@@ -3029,25 +3101,29 @@ const RecentFiles = {
     for (const entry of all) {
       const row = document.createElement('div');
       row.className = 'recent-item';
-      row.title = entry.names.join(', ');   // 어떤 파일로 저장했는지
+      row.title = entry.names.join(', ');   // 어떤 파일인지 전체 이름
 
       const name = document.createElement('span');
       name.className = 'recent-name';
-      name.textContent = entry.label;
+      name.textContent = saved ? entry.label
+        : entry.names[0] + (entry.names.length > 1 ? ` 외 ${entry.names.length - 1}개` : '');
 
       const time = document.createElement('span');
       time.className = 'recent-time';
-      time.textContent = `${entry.page}페이지 · ${recentTimeLabel(entry.time)}`;
+      time.textContent = saved ? `${entry.page}페이지 · ${recentTimeLabel(entry.time)}`
+                               : recentTimeLabel(entry.time);
 
-      const del = document.createElement('button');
-      del.className = 'recent-del';
-      del.textContent = '✕';
-      del.title = '목록에서 제거';
-      del.setAttribute('aria-label', '목록에서 제거');
-      del.addEventListener('click', e => { e.stopPropagation(); this.remove(entry.id); });
-
-      row.append(name, time, del);
-      row.addEventListener('click', () => this.open(entry));
+      row.append(name, time);
+      if (saved) {   // 자동 기록분은 8개 상한으로 스스로 회전하므로 삭제 버튼을 두지 않는다
+        const del = document.createElement('button');
+        del.className = 'recent-del';
+        del.textContent = '✕';
+        del.title = '목록에서 제거';
+        del.setAttribute('aria-label', '목록에서 제거');
+        del.addEventListener('click', e => { e.stopPropagation(); this.remove(entry.id); });
+        row.appendChild(del);
+      }
+      row.addEventListener('click', () => this.open(entry));   // page 없으면 open()이 1페이지
       list.appendChild(row);
     }
   },
@@ -3149,8 +3225,12 @@ const FileHandler = {
     if (!pdfs.length) { showToast('PDF 또는 PPT/PPTX 파일만 지원합니다.', true); return; }
     if (pdfs.length < files.length) showToast(`PDF ${pdfs.length}개만 불러옵니다(다른 형식 제외).`);
     if (await PDFRenderer.loadFiles(pdfs, { append: false })) {
-      // 여는 것만으로는 목록에 남기지 않는다 — 핸들만 보관했다가 📌 위치 저장 때 쓴다
-      if (pairs.every(p => p.h)) state.handles = pairs.map(p => p.h);
+      // 핸들이 전부 있을 때만 — 보관(📌 위치 저장용) + "최근 연 파일"에 자동 기록.
+      // append·PPT 변환 경로는 여기를 지나지 않으므로 기록 대상이 아니다.
+      if (pairs.every(p => p.h)) {
+        state.handles = pairs.map(p => p.h);
+        RecentFiles.record(state.docs.map(d => d.name), state.handles);
+      }
     }
   },
 };
