@@ -8,14 +8,17 @@ const os    = require('os');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-/** 주석 도구 단일 HTML + CDN — Vercel 프리뷰/애널리틱스 스크립트 포함 */
+/** 주석 도구 단일 HTML + CDN — Vercel 프리뷰/애널리틱스 스크립트 포함
+ *  accounts.google.com / googleapis.com = Google 드라이브 동기화(GIS 로그인 + Drive REST).
+ *  frame-src는 default-src 'self' 폴백을 받으므로 GIS용으로 명시한다. */
 const CSP_HTML = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://vercel.live https://*.vercel.live https://va.vercel-scripts.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://vercel.live https://*.vercel.live https://va.vercel-scripts.com https://accounts.google.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob:",
-  "connect-src 'self' https://cdnjs.cloudflare.com",
+  "connect-src 'self' https://cdnjs.cloudflare.com https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com",
+  "frame-src 'self' https://accounts.google.com",
   "worker-src 'self' blob: https://cdnjs.cloudflare.com",
   "base-uri 'self'",
 ].join('; ');

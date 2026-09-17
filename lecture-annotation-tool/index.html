@@ -167,6 +167,17 @@
       height: 100vh;
       padding-bottom: 132px;   /* 고정 푸터(≈108px) + 여유 */
       gap: 24px;
+      /* 목록 박스 max-height 계산에서 뺄 "목록 위아래 고정 높이" — 아래 #recent-list 주석 참고 */
+      --idle-reserve: 462px;
+    }
+    /* 드라이브 바(높이 24 + 간격 8)가 목록 위에 들어가는 만큼 더 뺀다 */
+    body.drive-on #idle-screen { --idle-reserve: 494px; }
+    /* 낮은 화면(1024×600·1366×633 등)의 학교 PC — 드롭존보다 드라이브 목록이 중요하다.
+       드롭존 100px을 줄인 만큼 reserve도 줄여 목록 5행이 보이게 한다(600 − 394 = 206).
+       Client ID 미설정 배포본의 배치는 건드리지 않도록 drive-on에만 적용 */
+    @media (max-height: 680px) {
+      body.drive-on #drop-zone { height: 180px; }
+      body.drive-on #idle-screen { --idle-reserve: 394px; }
     }
     #idle-screen.hidden { display: none; }
 
@@ -193,7 +204,16 @@
 
     #file-input { display: none; }
 
-    /* ── 저장된 강의 / 최근 연 파일 (File System Access API 지원 브라우저에서만 표시) ── */
+    /* ── 저장된 강의 / 최근 연 파일 (FSA 지원 브라우저 또는 드라이브 연결 시 표시) ── */
+    /* 드라이브 바 + 2단 목록을 세로로 묶는다. 드라이브 바가 없으면(Client ID 미설정)
+       #idle-lists 하나만 남아 예전 배치와 동일하다. */
+    #idle-lower {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
     /* 2단 가로 배치. 스크롤 컨테이너는 계속 #idle-screen 하나뿐 — 여기에 overflow를 주지 않는다 */
     #idle-lists {
       display: flex;
@@ -235,14 +255,15 @@
       /* 5행까지 보이고 그 이상은 목록 안에서 스크롤한다.
          07 라운드 버그(= max-height만 주면 목록 박스 자체가 고정 푸터 아래로 깔려,
          안쪽을 끝까지 내려도 마지막 행을 누를 수 없었다)를 막는 건 아래 calc()다.
-         462px = #idle-screen padding-bottom 132 + 드롭존 280 + gap 24 + 제목 14.67+8 + 여유
+         --idle-reserve 462px = #idle-screen padding-bottom 132 + 드롭존 280 + gap 24 + 제목 14.67+8 + 여유
+         (드라이브 바가 있으면 +32 → 494px, 낮은 화면은 드롭존 −100 → 394px)
          → 뷰포트가 낮으면 5행 상한 대신 calc()가 이겨서 박스 하단이 항상 푸터 위에서 끝난다.
          하한 2행보다 더 낮은 뷰포트는 예전처럼 #idle-screen 페이지 스크롤로 폴백(도달 가능). */
       overflow-y: auto;
       scrollbar-gutter: stable;   /* 5개 경계에서 스크롤바가 생겨도 행 폭이 흔들리지 않게 */
     }
-    #recent-list { max-height: max(84px, min(206px, calc(100vh - 462px))); }  /* 5 × 40.67 + 테두리 2 */
-    #opened-list { max-height: max(61px, min(149px, calc(100vh - 462px))); }  /* 5 × 29.33 + 테두리 2 */
+    #recent-list { max-height: max(84px, min(206px, calc(100vh - var(--idle-reserve)))); }  /* 5 × 40.67 + 테두리 2 */
+    #opened-list { max-height: max(61px, min(149px, calc(100vh - var(--idle-reserve)))); }  /* 5 × 29.33 + 테두리 2 */
     #recent-list::-webkit-scrollbar, #opened-list::-webkit-scrollbar { width: 8px; }
     #recent-list::-webkit-scrollbar-thumb, #opened-list::-webkit-scrollbar-thumb {
       background: var(--border2); border-radius: 4px;
@@ -280,6 +301,47 @@
       cursor: pointer;
     }
     .recent-del:hover { background: var(--tool-hover); color: var(--text); opacity: 1; }
+
+    /* ── Google 드라이브 (GOOGLE_CLIENT_ID 설정 시 body.drive-on) ── */
+    #drive-bar { display: none; }
+    body.drive-on #drive-bar {
+      display: flex; align-items: center; justify-content: center;
+      flex-wrap: wrap; gap: 4px 10px;
+      min-height: 24px;   /* --idle-reserve(+32)의 근거 — 높이를 바꾸면 같이 고친다 */
+      max-width: calc(100vw - 32px);
+      font-size: 11px; color: var(--text-muted);
+    }
+    /* 학교 PC 첫 화면에서 가장 먼저 눌러야 하는 버튼 — 미연결일 때만 보이므로 주요 버튼 톤 */
+    #drive-connect-btn {
+      font-size: 12px; font-weight: 600; padding: 3px 14px;
+      color: #2563eb; border-color: #3B82F6; background: rgba(59,130,246,0.08);
+    }
+    [data-theme="dark"] #drive-connect-btn { color: #60a5fa; }
+    #drive-connect-btn:hover { background: rgba(59,130,246,0.20); }
+    #drive-note a { color: inherit; text-decoration: underline; }
+    #drive-note a:hover { color: #3B82F6; }
+    .drive-btn {
+      background: transparent;
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      color: var(--text-muted);
+      font-family: inherit; font-size: 11px; line-height: 1.2;
+      padding: 2px 10px;
+      cursor: pointer;
+    }
+    .drive-btn:hover { background: rgba(59,130,246,0.10); color: #3B82F6; border-color: #3B82F6; }
+    #drive-note { color: var(--text-muted); }   /* 공용 PC 로그아웃 안내 — dim(대비 2.6:1)은 프로젝터에서 안 보인다 */
+    /* 드라이브에 있는 행 표시 — 이름을 가리지 않게 작고 흐리게 */
+    .drive-badge { flex: 0 0 auto; margin-right: -4px; font-size: 11px; opacity: 0.5; }
+    .drive-loading { padding: 5px 12px; font-size: 11px; color: var(--text-dim); }
+    /* 목록 불러오기 실패 — 토스트가 사라진 뒤에도 "강의 없음"으로 오해하지 않게 남겨 둔다 */
+    .drive-error {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 6px 10px 6px 12px;
+      font-size: 11px; color: #dc2626;
+      border-bottom: 1px solid var(--border);
+    }
+    [data-theme="dark"] .drive-error { color: #f87171; }
 
     #vibe-footer {
       position: fixed;
@@ -617,7 +679,7 @@
       outline: none;
     }
 
-    #save-png-btn, #download-pdf-btn, #add-pdf-btn, #close-pdf-btn, #save-pos-btn {
+    #save-png-btn, #download-pdf-btn, #add-pdf-btn, #close-pdf-btn, #save-pos-btn, #drive-save-btn {
       background: transparent;
       border: 1px solid var(--border2);
       border-radius: 6px;
@@ -638,6 +700,19 @@
        오클릭 거리를 두려고 바 끝으로 밀고 gap(16px)에 여백을 더 준다. */
     #save-pos-btn:hover   { background: rgba(245,158,11,0.10); color: #b45309; border-color: #f59e0b; }
     [data-theme="dark"] #save-pos-btn:hover { color: #fbbf24; }
+    #bottom-bar > * { white-space: nowrap; }   /* 좁은 화면에서 라벨이 두 줄로 꺾이지 않게 */
+    /* 드라이브 버튼이 늘어난 만큼 1024px(XGA 프로젝터)에서도 한 줄에 들어가게 간격·여백 축소 */
+    @media (max-width: 1140px) {
+      body.drive-on #bottom-bar { gap: 8px; }
+      body.drive-on #close-pdf-btn { margin-left: 8px; }
+      body.drive-on .nav-btn, body.drive-on #present-btn, body.drive-on #add-pdf-btn,
+      body.drive-on #save-png-btn, body.drive-on #download-pdf-btn, body.drive-on #save-pos-btn,
+      body.drive-on #drive-save-btn, body.drive-on #close-pdf-btn { padding: 4px 8px; }
+    }
+    #drive-save-btn { display: none; }                     /* Client ID 미설정이면 숨김 */
+    body.drive-on #drive-save-btn { display: inline-block; }
+    #drive-save-btn:hover { background: rgba(59,130,246,0.10); color: #2563eb; border-color: #3B82F6; }
+    [data-theme="dark"] #drive-save-btn:hover { color: #60a5fa; }
     #close-pdf-btn        { margin-left: 16px; }
     #close-pdf-btn:hover  { background: rgba(239,68,68,0.10); color: #ef4444; border-color: #ef4444; }
 
@@ -877,15 +952,30 @@
   </div>
   <input type="file" id="file-input" accept=".pdf,.ppt,.pptx" multiple />
 
-  <!-- 좌: 저장된 강의(북마크) / 우: 최근 연 파일 — FSA 미지원 브라우저에서는 계속 hidden -->
-  <div id="idle-lists">
-    <div id="recent-section" class="hidden">
-      <div class="recent-title">저장된 강의</div>
-      <div id="recent-list"></div>
+  <div id="idle-lower">
+    <!-- Google 드라이브 연결 상태 — GOOGLE_CLIENT_ID가 비어 있으면 CSS로 숨김 -->
+    <div id="drive-bar">
+      <button class="drive-btn" id="drive-connect-btn"
+              title="다른 PC에서 드라이브에 저장한 강의·진도 불러오기">☁ Google 드라이브 연결</button>
+      <span id="drive-user" hidden></span>
+      <button class="drive-btn" id="drive-refresh-btn" hidden>새로고침</button>
+      <button class="drive-btn" id="drive-disconnect-btn" hidden>연결 해제</button>
+      <!-- 연결 해제는 앱의 연결만 끊는다. 브라우저의 Google 로그인은 남으므로 로그아웃을 함께 안내 -->
+      <span id="drive-note" hidden>공용 PC: 끝나면 연결 해제 + <a id="drive-logout" href="https://accounts.google.com/Logout"
+            target="_blank" rel="noopener noreferrer" title="이 브라우저의 Google 계정에서 로그아웃(새 창)">Google 로그아웃↗</a></span>
     </div>
-    <div id="opened-section" class="hidden">
-      <div class="recent-title">최근 연 파일</div>
-      <div id="opened-list"></div>
+
+    <!-- 좌: 저장된 강의(북마크) / 우: 최근 연 파일 — 로컬(FSA)과 드라이브 항목을 병합해 표시.
+         FSA 미지원 + 드라이브 미연결이면 계속 hidden -->
+    <div id="idle-lists">
+      <div id="recent-section" class="hidden">
+        <div class="recent-title">저장된 강의</div>
+        <div id="recent-list"></div>
+      </div>
+      <div id="opened-section" class="hidden">
+        <div class="recent-title">최근 연 파일</div>
+        <div id="opened-list"></div>
+      </div>
     </div>
   </div>
 
@@ -996,7 +1086,8 @@
     <button id="add-pdf-btn" title="현재 슬라이드 뒤에 PDF 이어 붙이기">➕ PDF 추가</button>
     <button id="save-png-btn">💾 PNG 저장</button>
     <button id="download-pdf-btn" title="현재 페이지가 속한 PDF 다운로드">⬇️ PDF 저장</button>
-    <button id="save-pos-btn" title="현재 파일과 페이지를 이름 붙여 저장">📌 위치 저장</button>
+    <button id="save-pos-btn" title="현재 파일과 페이지를 이름 붙여 저장 — 드라이브 연동 강의는 드라이브에도 저장">📌 위치 저장</button>
+    <button id="drive-save-btn" title="이 강의 파일을 Google 드라이브로 복사 — 다른 PC에서 열 수 있게(위치는 📌로 저장). PDF를 고쳤다면 다시 누르세요">☁ 드라이브 저장</button>
     <button id="close-pdf-btn" title="현재 PDF를 닫고 시작 화면으로 (주석도 함께 삭제)">✕ 닫기</button>
   </div>
 </div>
@@ -1094,8 +1185,13 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-16.2';
+const APP_VERSION = '2026-09-17.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
+
+// Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
+// 전부 없다(기존 동작 그대로). 설정 방법: _workspace/13_drive_setup_guide.md
+const GOOGLE_CLIENT_ID = '';
+const DRIVE_ON = !!GOOGLE_CLIENT_ID && location.protocol !== 'file:';   // GIS는 file:// 미지원
 
 // ══════════════════════════════════════════════════════════
 // PDF.js 워커 설정
@@ -1128,6 +1224,8 @@ const state = {
   pdfFilename: 'document.pdf',
   copiedStroke: null,   // 내부 클립보드 (Ctrl+C로 복사된 개체)
   handles: null,        // 현재 덱의 FileSystemFileHandle[] — 위치 저장에 필요(없으면 저장 불가)
+  driveFileIds: null,   // 현재 덱의 드라이브 파일 id[](docs 순서) — 있으면 "드라이브 연동 덱"
+  driveOpened: false,   // 드라이브에서 받아 연 덱(원본이 이 PC에 없음) — 이 바이트로 드라이브 파일을 덮어쓰지 않는다
   _toolInited: false,   // ToolController.init 중복 방지
 };
 
@@ -1242,11 +1340,12 @@ const dW   = nw => nw * drawCanvas.width;
 // Toast
 // ══════════════════════════════════════════════════════════
 let toastTimer = null;
-function showToast(msg, isError = false) {
+// ms: 표시 시간 — 드라이브 오류처럼 긴 안내는 5000을 넘긴다
+function showToast(msg, isError = false, ms = 2800) {
   toastEl.textContent = msg;
   toastEl.className = 'show' + (isError ? ' error' : '');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toastEl.className = ''; }, 2800);
+  toastTimer = setTimeout(() => { toastEl.className = ''; }, ms);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1299,13 +1398,17 @@ const PDFRenderer = {
   // files: File[] (PDF만). append=true면 기존 덱 뒤에 이어 붙인다(주석 보존).
   async loadFiles(files, { append = false } = {}) {
     if (!files || !files.length) return;
+    if (append && !Drive.pendingOk('PDF를 추가하면', '계속할까요?')) return false;
     files = files.slice().sort(natCmp);   // 파일명 자연순(01,02,…)으로 정렬
     $('loading-text').textContent = files.length > 1 ? `PDF ${files.length}개 불러오는 중...` : 'PDF 로딩 중...';
     loadingOverlay.classList.add('visible');
     try {
-      // 덱 구성이 바뀌면 보관 중인 핸들은 더 이상 이 덱을 설명하지 못한다.
+      // 덱 구성이 바뀌면 보관 중인 핸들·드라이브 파일 id는 더 이상 이 덱을 설명하지 못한다.
       // (append는 핸들 없이 이어 붙이므로 무효, 새 로드는 성공 후 호출부가 다시 채운다)
       state.handles = null;
+      state.driveFileIds = null;
+      state.driveOpened = false;
+      Drive.pendingSave = null;   // 보류 중이던 드라이브 위치는 이전 덱의 것
       if (!append) {
         state.docs = [];
         state.renderedPages = {};
@@ -1324,6 +1427,7 @@ const PDFRenderer = {
       loadingOverlay.classList.remove('visible');
       idleScreen.classList.add('hidden');
       appEl.classList.add('visible');
+      canvasQuietUntil = performance.now() + CANVAS_QUIET_MS;   // 목록 행 두 번째 클릭이 슬라이드에 닿지 않게
       if (!state._toolInited) { ToolController.init(); state._toolInited = true; }
 
       if (append) {
@@ -2098,6 +2202,16 @@ const Timer = {
 // ══════════════════════════════════════════════════════════
 let currentStroke = null;
 
+// 덱을 막 연 직후의 캔버스 클릭은 무시한다 — 목록 행을 느리게 두 번 누르면 두 번째 클릭이
+// 열린 슬라이드에 펜 점을 찍거나(그리기) 페이지를 넘기지(전체보기 클릭 넘김) 않게.
+// 로드 완료 시점부터 재므로 OS 기본 더블클릭 간격(500ms) 안의 두 번째 클릭은 모두 걸러진다.
+// 다른 mousedown 리스너보다 먼저 등록해야 stopImmediatePropagation이 뒤 리스너를 막는다.
+const CANVAS_QUIET_MS = 500;
+let canvasQuietUntil = 0;
+drawCanvas.addEventListener('mousedown', e => {
+  if (performance.now() < canvasQuietUntil) e.stopImmediatePropagation();
+});
+
 function getCanvasPos(e) {
   const rect = drawCanvas.getBoundingClientRect();
   return {
@@ -2486,6 +2600,7 @@ $('clear-all-btn').addEventListener('click', () => {
 function closeDeck() {
   const annotated = Object.values(state.strokes).filter(a => a && a.length).length;
   if (annotated && !confirm(`주석이 있는 페이지 ${annotated}개가 삭제됩니다. 닫을까요?`)) return;
+  if (!Drive.pendingOk('닫으면', '닫을까요?')) return;
 
   // 상태를 먼저 비운다 — 그래야 아래 exitPresentationMode의 재렌더가 state.pdf 검사에서
   // 스스로 걸러진다(순서를 뒤집으면 뒤늦은 showPage가 currentPage를 되돌려 놓는다).
@@ -2496,6 +2611,9 @@ function closeDeck() {
   state.pdfBytes = null; state.pdfFilename = 'document.pdf';
   state.copiedStroke = null;   // 닫은 덱의 개체를 새 덱에 붙여넣지 않는다
   state.handles = null;
+  state.driveFileIds = null;
+  state.driveOpened = false;
+  Drive.pendingSave = null;
   StrokeStore.clearAll();
   History.resetAll();
 
@@ -2509,6 +2627,10 @@ function closeDeck() {
 }
 $('close-pdf-btn').addEventListener('click', closeDeck);
 $('save-pos-btn') .addEventListener('click', () => RecentFiles.save());
+// ☁ — 미연결·토큰 만료면 클릭 제스처 안에서 로그인 팝업을 먼저 띄우고, 연결되면 이어서 복사
+$('drive-save-btn').addEventListener('click', () => {
+  if (!Drive.busy) Drive.ensure(() => Drive.exclusive(() => Drive.saveDeck()));
+});
 
 // ══════════════════════════════════════════════════════════
 // 전체보기 (Presentation Mode)
@@ -2943,10 +3065,14 @@ const PptHandler = {
 //   id가 파일명 집합이라 같은 덱을 📌 저장하면 자동 기록분을 덮어쓴다(양쪽 동시 노출 없음).
 //   핸들을 IndexedDB에 그대로 저장(Chromium은 structured clone 지원)해서
 //   다음 방문 때 권한만 다시 받고 로컬 파일을 직접 연다.
-//   FSA 미지원 브라우저에서는 모든 진입점이 no-op → 기존 동작 그대로.
+//   FSA 미지원 브라우저에서는 로컬 쪽 진입점이 no-op → 기존 동작 그대로.
+//   드라이브가 연결되면 Drive.lib의 항목을 같은 id로 병합해 같은 두 목록에 함께 보인다(☁ 배지).
+//   연결 해제 시 드라이브 항목만 사라지고 이 PC의 로컬 항목은 그대로 남는다.
 // ══════════════════════════════════════════════════════════
 const HAS_FSA     = typeof window.showOpenFilePicker === 'function';
 const RECENT_MAX  = 8;   // "최근 연 파일"만의 상한 (북마크는 무제한)
+// 덱 식별자 = 파일명 집합. 로컬·드라이브 항목이 같은 규칙이라 id로 병합된다.
+const deckId      = names => names.slice().sort().join('\0');
 
 // IndexedDB 최소 Promise 래퍼 (DB: lat_recent / store: entries)
 const RecentDB = {
@@ -2984,23 +3110,40 @@ function recentTimeLabel(t) {
 }
 
 const RecentFiles = {
-  init() { if (HAS_FSA) this.render(); },
+  init() { this.render(); },
 
-  // saved 필드가 없는 항목 = 예전 자동 기록분 → 양쪽 목록 모두에서 제외(마이그레이션 불필요)
-  async _sorted(saved = true) {
-    try {
-      return (await RecentDB.all())
-        .filter(e => saved ? !!e.saved : e.saved === false)
-        .sort((a, b) => b.time - a.time);
-    }
+  async _local() {
+    if (!HAS_FSA) return [];
+    try { return await RecentDB.all(); }
     catch (e) { console.warn('recent: read failed', e); return []; }
+  },
+
+  // 로컬·드라이브 항목을 id로 병합한 행 목록 { id, names, saved, label, page, time, local, drive }.
+  //   saved: 어느 한쪽이라도 saved:true면 true(좌측에만 뜬다).
+  //   label/page/time: 그 saved 값을 가진 쪽 중 time이 최신인 쪽 — 학교에서 진행한 페이지가
+  //   집 PC에서도 이어진다. saved 필드가 없는 로컬 항목(레거시)은 제외(마이그레이션 불필요).
+  async _rows() {
+    const map = new Map();
+    const add = (e, side) => {
+      if (typeof e.saved !== 'boolean') return;
+      if (!map.has(e.id)) map.set(e.id, { id: e.id, names: e.names, local: null, drive: null });
+      map.get(e.id)[side] = e;
+    };
+    (await this._local()).forEach(e => add(e, 'local'));
+    Drive.entries().forEach(e => add(e, 'drive'));
+    return [...map.values()].map(r => {
+      const sides = [r.local, r.drive].filter(Boolean);
+      const saved = sides.some(s => s.saved);
+      const pick  = sides.filter(s => s.saved === saved).sort((a, b) => b.time - a.time)[0];
+      return { ...r, saved, label: pick.label || r.names[0], page: pick.page, time: pick.time };
+    }).sort((a, b) => b.time - a.time);
   },
 
   // 파일을 열었을 때의 자동 기록(saved:false). 같은 덱의 북마크가 있으면 기록하지 않는다
   // — 한 파일이 양쪽에 동시에 뜨면 안 된다. 실패해도 로드 자체는 이미 끝났으므로 조용히 넘긴다.
   async record(names, handles) {
     if (!HAS_FSA) return;
-    const id = names.slice().sort().join('\0');
+    const id = deckId(names);
     try {
       const all = await RecentDB.all();
       if (all.some(e => e.id === id && e.saved)) return;
@@ -3014,32 +3157,120 @@ const RecentFiles = {
     } catch (e) { console.warn('recent: record failed', e); }
   },
 
-  // 📌 현재 덱 + 현재 페이지를 이름 붙여 저장. 파일명 집합이 같으면 같은 id → 덮어써서
-  // 페이지·이름·시각만 갱신된다(중복 생성 없음). 같은 id의 자동 기록분(saved:false)도
-  // 이 덮어쓰기로 사라진다 — 한 파일이 양쪽 목록에 동시에 뜨지 않는다.
-  async save() {
-    if (!state.pdf) return;
-    if (!HAS_FSA || !state.handles) {
+  // 저장 이름 입력 — 기본값은 보류 중인 label → 기존 label(로컬·드라이브 병합) → 첫 파일명. 취소면 null
+  async askLabel() {
+    const names = state.docs.map(d => d.name);
+    const prev  = (await this._rows()).find(r => r.id === deckId(names) && r.saved);
+    const def   = (Drive.pendingSave && Drive.pendingSave.label)
+               || (prev ? prev.label : names[0].replace(/\.[^.]+$/, ''));
+    const input = prompt('저장할 이름을 입력하세요:', def);
+    return input === null ? null : (input.trim() || names[0]);
+  },
+
+  // 로컬 북마크 기록만(이름은 호출부가 받아 온다).
+  // 파일명 집합이 같으면 같은 id → 덮어써서 페이지·이름·시각만 갱신(중복 생성 없음).
+  // 같은 id의 자동 기록분(saved:false)도 이 덮어쓰기로 사라진다.
+  async saveLocal(label, page) {
+    const names = state.docs.map(d => d.name);
+    try {
+      await RecentDB.put({ id: deckId(names), names, handles: state.handles, label, page,
+                           time: Date.now(), saved: true });
+      this.render();
+      return true;
+    } catch (e) {
+      console.warn('bookmark: save failed', e);   // 핸들 clone 미지원 등
+      return false;
+    }
+  },
+
+  // 📌 현재 덱 + 현재 페이지를 이름 붙여 저장.
+  //   로컬: 파일 선택 창으로 연 덱(핸들 있음)일 때.
+  //   드라이브: 드라이브 연동 덱(state.driveFileIds — ☁로 올렸거나 드라이브에서 열었거나 목록과 id가 같음)이면
+  //     드라이브에도 saved:true로 저장. 이 PC에서 연 파일이면 수정본을 같은 fileId에 교체 업로드.
+  //   둘 다 아니면 기존 안내. (드라이브에서 연 덱은 핸들이 없으므로 로컬은 건너뛴다)
+  //   📌는 언제나 "현재 페이지"를 저장한다(보류된 예전 페이지로 되돌리지 않는다).
+  save() {
+    if (!state.pdf || Drive.busy) return;   // 연타 — 이름 입력창이 두 번 뜨지 않게
+    const local = HAS_FSA && !!state.handles;
+    const drive = DRIVE_ON && !!state.driveFileIds;
+    if (!local && !drive) {
       showToast('브라우저 파일 선택 창으로 연 파일만 저장할 수 있습니다.', true);
       return;
     }
-    const names = state.docs.map(d => d.name);
-    const id    = names.slice().sort().join('\0');
-    const prev  = (await this._sorted()).find(e => e.id === id);
-    const input = prompt('저장할 이름을 입력하세요:',
-                         prev ? prev.label : names[0].replace(/\.[^.]+$/, ''));
-    if (input === null) return;                    // 취소 → 저장하지 않는다
-    const label = input.trim() || names[0];
-    const page  = state.currentPage;
-    try {
-      await RecentDB.put({ id, names, handles: state.handles, label, page,
-                           time: Date.now(), saved: true });
-      this.render();
-      showToast(`저장했습니다 — ${label} · ${page}페이지`);
-    } catch (e) {
-      console.warn('bookmark: save failed', e);   // 핸들 clone 미지원 등
-      showToast('저장에 실패했습니다.', true);
+    let mode = drive ? 'now' : null;
+    if (drive && !Drive.ready()) {
+      // 전체보기 판단은 클릭 시점에 — 이름 입력창이 뜨면 Chrome이 전체화면을 풀어 버린다
+      if (isPresenting()) mode = 'defer';        // 강의 화면에는 로그인 창을 띄우지 않고 보류
+      else if (local) mode = 'login';            // 이 PC에 먼저 저장한 뒤 로그인을 시도
+      else {
+        // 드라이브 전용 덱은 저장할 곳이 드라이브뿐 — 로그인 창부터(클릭 제스처 안), 실패하면 분명히 알림
+        Drive.ensure(() => this.save(), hint =>
+          showToast('위치를 저장하지 못했습니다 — 드라이브에 로그인해야 저장됩니다. 📌를 다시 누르세요.'
+                    + (hint ? ` (${hint})` : ''), true, 5000));
+        return;
+      }
     }
+    Drive.exclusive(() => this._save(local, mode));
+  },
+
+  // mode: null(로컬만) | 'now'(드라이브 바로) | 'login'(로컬 저장 후 로그인 시도) | 'defer'(드라이브 보류)
+  async _save(local, mode) {
+    const label = await this.askLabel();
+    if (label === null) return;                    // 취소 → 저장하지 않는다
+    const page  = state.currentPage;
+    const docs  = state.docs.slice();
+    if (local && !(await this.saveLocal(label, page))) {
+      showToast('저장에 실패했습니다.', true);
+      return;
+    }
+    if (!mode) { showToast(`저장했습니다 — ${label} · ${page}페이지`); return; }
+    if (mode === 'defer') {
+      Drive.pendingSave = { label, page, reminded: false };
+      showToast(`${local ? '이 PC에 저장했습니다' : '위치를 보관했습니다'} — 드라이브 로그인이 만료되어, `
+              + '전체보기를 마친 뒤 📌를 한 번 더 누르면 드라이브에 반영합니다', false, 5000);
+      return;
+    }
+    if (mode === 'login') {
+      // 이 PC에는 이미 저장됐다. 이름 입력 사이에 클릭 제스처가 사라졌으면 팝업이 막히므로 보류로.
+      const active = !navigator.userActivation || navigator.userActivation.isActive;
+      if (!active) { this._deferDrive(label, page, ''); return; }
+      Drive.ensure(() => Drive.exclusive(() => this._pushDrive(label, page, local, docs)),
+                   hint => this._deferDrive(label, page, hint));
+      return;
+    }
+    await this._pushDrive(label, page, local, docs);
+  },
+
+  // 드라이브에 위치 저장. 이 PC에서 연 파일이면 드라이브 파일이 최신 내용인지 확인(수정본은 같은 fileId에 교체)
+  async _pushDrive(label, page, local, docs) {
+    if (!Drive.sameDeck(docs)) return;   // 로그인하는 사이 덱이 바뀜 — 이전 덱의 위치는 버린다
+    try {
+      const fileIds = state.driveOpened ? null
+        : await Drive.ensureUploaded(docs, state.driveFileIds, f =>
+            Drive._progress(`드라이브에 올리는 중… ${Math.floor(f * 100)}%`));
+      await Drive.savePos(label, page, fileIds);
+      loadingOverlay.classList.remove('visible');
+      if (fileIds && Drive.sameDeck(docs)) state.driveFileIds = fileIds;
+      Drive.pendingSave = null;
+      showToast(`저장했습니다 (☁ 드라이브 포함) — ${label} · ${page}페이지`);
+    } catch (e) {
+      loadingOverlay.classList.remove('visible');
+      if (!e.quiet) {
+        Drive.fail(e, '드라이브 저장에 실패했습니다.', local ? '이 PC에는 저장했지만, ' : '');
+      } else if (local) {
+        this._deferDrive(label, page, '');   // 401 — 이 PC 저장은 유지, 드라이브만 보류
+      } else {
+        Drive.pendingSave = { label, page, reminded: true };   // 닫을 때 확인창으로 한 번 더 알린다
+        showToast('드라이브 연결이 만료되어 위치를 드라이브에 저장하지 못했습니다. 📌를 다시 누르면 다시 연결됩니다.', true, 5000);
+      }
+    }
+  },
+
+  // 로그인 취소·팝업 차단·401 — 이 PC 저장은 그대로 두고 드라이브 반영만 보류
+  _deferDrive(label, page, hint) {
+    Drive.pendingSave = { label, page, reminded: true };   // 지금 안내하므로 다음 클릭 알림은 생략
+    showToast('이 PC에는 저장했습니다. 드라이브에는 반영되지 않았습니다 — 📌를 다시 누르면 드라이브에도 저장됩니다.'
+              + (hint ? ` (${hint})` : ''), true, 5000);
   },
 
   // quiet: 호출부가 이미 사유를 안내한 경우(NotFoundError 등) 토스트를 덮지 않는다
@@ -3049,19 +3280,62 @@ const RecentFiles = {
     if (!quiet) showToast('목록에서 제거했습니다.');
   },
 
-  async open(entry) {
+  // 좌측 ✕ — 드라이브 항목이 섞인 행이면 확인 후 양쪽에서 제거(PDF 파일은 드라이브에 남는다).
+  //   토큰이 만료됐으면 확인창보다 먼저 재연결한다(확인에 시간이 걸리면 클릭 제스처가 사라져 팝업이 막힘).
+  //   드라이브 삭제가 성공해야 로컬도 지운다 — 실패하면 양쪽 모두 그대로(부분 삭제 없음).
+  removeRow(row) {
+    if (Drive.busy) return;
+    if (!row.drive) { this.remove(row.id); return; }
+    Drive.ensure(() => {
+      if (!confirm('드라이브 목록에서도 제거됩니다. PDF 파일은 드라이브에 남습니다. 계속할까요?')) return;
+      Drive.exclusive(async () => {
+        try {
+          await Drive.update(list => {
+            const i = list.findIndex(e => e.id === row.id);
+            if (i < 0) return false;
+            list.splice(i, 1);
+          });
+        } catch (e) {
+          if (e.quiet) showToast('드라이브 연결이 만료되어 제거하지 못했습니다 — 목록은 그대로 둡니다.', true, 5000);
+          else Drive.fail(e, '드라이브 목록에서 제거하지 못했습니다 — 목록은 그대로 둡니다.');
+          return;
+        }
+        if (row.local) await RecentDB.del(row.id).catch(() => {});
+        this.render();
+        showToast('목록에서 제거했습니다.');
+      });
+    });
+  },
+
+  // 행 클릭 — 로컬 핸들이 있으면 로컬 우선, 못 열면(파일 없음·권한 거부) 드라이브로 폴백.
+  // 로컬이 없는 행은 곧바로 드라이브(만료 시 재연결 팝업을 위해 동기 호출).
+  // 더블클릭·연타로 덱이 두 번 열리지 않게 전 과정을 한 번에 하나만(Drive.exclusive).
+  async open(row) {
+    if (Drive.busy) return;
+    if (row.local && !(await Drive.exclusive(() => this._openLocal(row)))) return;
+    if (row.drive) Drive.ensure(() => Drive.exclusive(() => Drive.open(row)));
+  },
+
+  // 반환: true = 드라이브로 폴백해야 함 / false = 처리 끝(성공 또는 안내 완료)
+  async _openLocal(row) {
+    const entry = row.local;
     try {
       // 권한 요청은 클릭 제스처가 살아있는 동안 먼저 처리한다
       for (const h of entry.handles) {
         if (!h.queryPermission) continue;
         let p = await h.queryPermission({ mode: 'read' });
         if (p !== 'granted') p = await h.requestPermission({ mode: 'read' });
-        if (p !== 'granted') { showToast('파일 접근 권한이 거부되었습니다.', true); return; }
+        if (p !== 'granted') {
+          if (row.drive) { showToast('파일 접근 권한이 없어 드라이브에서 엽니다.'); return true; }
+          showToast('파일 접근 권한이 거부되었습니다.', true);
+          return false;
+        }
       }
       const files = await Promise.all(entry.handles.map(h => h.getFile()));
       if (await PDFRenderer.loadFiles(files, { append: false })) {
         state.handles = entry.handles;    // 연 직후 바로 다시 위치 저장할 수 있게
-        goToPage(entry.page || 1);        // 파일이 바뀌어 범위를 넘으면 goToPage가 클램프
+        Drive.link();                     // 드라이브 목록에도 있는 덱이면 📌가 드라이브에도 반영
+        goToPage(row.page || 1);          // 파일이 바뀌어 범위를 넘으면 goToPage가 클램프
         // 최근 연 파일은 열 때마다 맨 위로. 북마크의 time은 화면에 "저장 시각"으로
         // 표시되므로 건드리지 않는다(열었다고 갱신하면 표시가 거짓이 된다).
         if (entry.saved === false) {
@@ -3071,6 +3345,11 @@ const RecentFiles = {
       }
     } catch (e) {
       if (e.name === 'NotFoundError') {
+        if (row.drive) {                 // 로컬 사본은 사라졌지만 드라이브에 있다
+          showToast('이 PC에서 파일을 찾을 수 없어 드라이브에서 엽니다.');
+          RecentDB.del(entry.id).catch(() => {});
+          return true;
+        }
         showToast('파일을 찾을 수 없어 목록에서 제거합니다.', true);
         this.remove(entry.id, true);   // 위 안내를 덮지 않게
       } else if (e.name !== 'AbortError') {
@@ -3078,59 +3357,611 @@ const RecentFiles = {
         showToast('파일을 열 수 없습니다: ' + e.message, true);
       }
     }
+    return false;
   },
 
   async render() {
-    if (!HAS_FSA) return;
-    this._paint($('recent-section'), $('recent-list'), await this._sorted(true),  true);
-    this._paint($('opened-section'), $('opened-list'), (await this._sorted(false)).slice(0, RECENT_MAX), false);
+    Drive.paintBar();
+    const sections = [$('recent-section'), $('opened-section')];
+    // 로컬 목록도(FSA 미지원) 드라이브도(미연결) 없으면 두 섹션 모두 숨김 — 예전과 동일
+    if (!HAS_FSA && !Drive.isConnected()) { sections.forEach(s => s.classList.add('hidden')); return; }
+    const rows = await this._rows();
+    this._paint(sections[0], $('recent-list'), rows.filter(r => r.saved), true);
+    this._paint(sections[1], $('opened-list'), rows.filter(r => !r.saved).slice(0, RECENT_MAX), false);
   },
 
   // saved: true=저장된 강의(이름·페이지·✕ 삭제) / false=최근 연 파일(파일명·시각, 8개 자동 회전)
-  _paint(section, list, all, saved) {
+  // 드라이브에서 온 이름·label은 전부 textContent로만 넣는다(XSS 방지).
+  _paint(section, list, rows, saved) {
     if (!section) return;
-    // FSA 지원 브라우저면 비어 있어도 섹션을 띄운다 — 안 그러면 처음 방문한 사용자가
-    // 기능 존재 자체를 모른다. (미지원 브라우저는 render()의 early return으로 계속 hidden)
+    // 비어 있어도 섹션을 띄운다 — 안 그러면 처음 방문한 사용자가 기능 존재 자체를 모른다.
     section.classList.remove('hidden');
     list.textContent = '';
 
-    if (!all.length) {
+    if (Drive.loading) {
+      const ld = document.createElement('div');
+      ld.className = 'drive-loading';
+      ld.textContent = '☁ 드라이브 불러오는 중…';
+      list.appendChild(ld);
+      if (!rows.length) return;   // 불러오는 중엔 "없습니다" 문구를 띄우지 않는다
+    } else if (saved && Drive.error) {
+      // 목록 실패는 토스트가 사라진 뒤에도 남긴다 — 연결된 채 "강의 없음"만 보이면 드라이브가 비었다고 오해한다
+      const er = document.createElement('div');
+      er.className = 'drive-error';
+      const msg = document.createElement('span');
+      msg.textContent = '☁ ' + Drive.error;
+      const retry = document.createElement('button');
+      retry.className = 'drive-btn';
+      retry.textContent = '새로고침';
+      retry.addEventListener('click', () => Drive.refreshClick());
+      er.append(msg, retry);
+      list.appendChild(er);
+      if (!rows.length) return;
+    }
+
+    if (!rows.length) {
       const empty = document.createElement('div');
       empty.className = 'recent-empty';
-      empty.textContent = saved
-        ? '저장된 강의가 없습니다\n강의 중 📌 위치 저장을 누르면 여기에 저장됩니다'
-        : '최근에 연 파일이 없습니다';
+      // 학교 PC(Client ID 있음·미연결)에서 필요한 행동은 저장이 아니라 연결이다
+      empty.textContent = !saved ? '최근에 연 파일이 없습니다'
+        : DRIVE_ON && !Drive.isConnected()
+          ? '저장된 강의가 없습니다\nGoogle 드라이브를 연결하면 저장한 강의가 여기에 표시됩니다'
+          : '저장된 강의가 없습니다\n강의 중 📌 위치 저장을 누르면 여기에 저장됩니다';
       list.appendChild(empty);
       return;
     }
 
-    for (const entry of all) {
-      const row = document.createElement('div');
-      row.className = 'recent-item';
-      row.title = entry.names.join(', ');   // 어떤 파일인지 전체 이름
+    for (const row of rows) {
+      const el = document.createElement('div');
+      el.className = 'recent-item';
+      el.title = row.names.join(', ') + (row.drive ? ' · Google 드라이브' : '');   // 어떤 파일인지 전체 이름
+
+      if (row.drive) {
+        const badge = document.createElement('span');
+        badge.className = 'drive-badge';
+        badge.textContent = '☁';
+        el.appendChild(badge);
+      }
 
       const name = document.createElement('span');
       name.className = 'recent-name';
-      name.textContent = saved ? entry.label
-        : entry.names[0] + (entry.names.length > 1 ? ` 외 ${entry.names.length - 1}개` : '');
+      name.textContent = saved ? row.label
+        : row.names[0] + (row.names.length > 1 ? ` 외 ${row.names.length - 1}개` : '');
 
       const time = document.createElement('span');
       time.className = 'recent-time';
-      time.textContent = saved ? `${entry.page}페이지 · ${recentTimeLabel(entry.time)}`
-                               : recentTimeLabel(entry.time);
+      time.textContent = saved ? `${row.page || 1}페이지 · ${recentTimeLabel(row.time)}`
+                               : recentTimeLabel(row.time);
 
-      row.append(name, time);
+      el.append(name, time);
       if (saved) {   // 자동 기록분은 8개 상한으로 스스로 회전하므로 삭제 버튼을 두지 않는다
         const del = document.createElement('button');
         del.className = 'recent-del';
         del.textContent = '✕';
         del.title = '목록에서 제거';
         del.setAttribute('aria-label', '목록에서 제거');
-        del.addEventListener('click', e => { e.stopPropagation(); this.remove(entry.id); });
-        row.appendChild(del);
+        del.addEventListener('click', e => { e.stopPropagation(); this.removeRow(row); });
+        el.appendChild(del);
       }
-      row.addEventListener('click', () => this.open(entry));   // page 없으면 open()이 1페이지
-      list.appendChild(row);
+      el.addEventListener('click', () => this.open(row));   // page 없으면 1페이지
+      list.appendChild(el);
+    }
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// Drive — Google 드라이브 동기화 (GOOGLE_CLIENT_ID가 있을 때만 동작)
+//   인증: GIS 토큰 클라이언트(drive.file = 이 앱이 만든 파일만 접근). 토큰·이메일은 메모리에만.
+//   저장: 드라이브 폴더 'Lecture Annotation Tool' 안에 PDF들 + library.json 하나.
+//     library.json = { v:1, entries:[{ id, names, fileIds, label?, page?, time, saved }] }
+//     (로컬 IndexedDB 항목과 같은 스키마, handles 대신 fileIds). 동시 편집은 last-write-wins.
+//   역할: ☁ = 강의 파일을 드라이브로 복사(위치는 그대로 — 북마크가 있으면 saved:true, 없으면 saved:false)
+//         📌 = 위치 저장(드라이브 연동 덱이면 드라이브에도 saved:true)
+//         순수 로컬 덱(☁ 안 누름)은 드라이브에 아무것도 쓰지 않는다.
+//   드라이브 항목은 로컬에 캐시하지 않는다(공용 PC에 흔적을 남기지 않음).
+//   모든 오류는 토스트/목록 안내로만 알리고 로컬 기능을 막지 않는다.
+// ══════════════════════════════════════════════════════════
+const DRIVE_API    = 'https://www.googleapis.com/drive/v3';
+const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
+const DRIVE_SCOPE  = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FOLDER = 'Lecture Annotation Tool';
+const DRIVE_EMPTY  = { v: 1, entries: [] };
+// Drive 검색식(q) 문자열 리터럴 이스케이프
+const driveQ = s => s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+const Drive = {
+  _client: null,      // GIS 토큰 클라이언트
+  _gisFailed: false,  // GIS 스크립트 로드 실패(재시도해도 안 됨 → 새로고침 안내)
+  _token: null,
+  _exp: 0,            // 토큰 만료 시각(ms) — 1시간짜리라 강의 중에 끝날 수 있다
+  _email: '',         // 표시·재로그인 힌트(401 뒤에도 유지, 연결 해제 시 삭제)
+  _pending: null,     // 연결 완료 후 이어서 실행할 작업
+  _pendingFail: null, // 로그인이 끝나지 못했을 때(취소·차단·거부) 부를 작업 — 인자: 사유 안내(hint)
+  _folderP: null,     // 폴더 id Promise 캐시
+  _libP: null,        // library.json id Promise 캐시
+  _q: Promise.resolve(),   // library 읽기-수정-쓰기 직렬화
+  lib: null,          // 마지막으로 읽은 { entries, bad? }
+  loading: false,
+  error: '',          // 목록 불러오기 실패 안내(목록 안에 남김)
+  busy: false,        // 열기·☁·📌·✕·새로고침 진행 중 — 연타로 같은 작업이 겹치지 않게
+  pendingSave: null,  // 전체보기 중 만료로 보류한 드라이브 위치 { label, page, reminded }
+
+  init() {
+    if (!DRIVE_ON) return;
+    document.body.classList.add('drive-on');
+    $('drive-connect-btn').addEventListener('click', () => this.ensure(() => {}));
+    $('drive-refresh-btn').addEventListener('click', () => this.refreshClick());
+    $('drive-disconnect-btn').addEventListener('click', () => this.disconnect());
+    // 보류된 드라이브 위치 — 전체보기를 마친 뒤 첫 클릭에서 한 번 알린다
+    // (📌 자체 클릭, 전체보기로 다시 들어가는 클릭은 제외 — 프로젝터에 띄우지 않는다)
+    document.addEventListener('click', e => {
+      const p = this.pendingSave;
+      if (!p || p.reminded || isPresenting() || e.target.closest('#save-pos-btn, #present-btn')) return;
+      p.reminded = true;
+      showToast('드라이브에 아직 반영되지 않은 위치가 있습니다 — 📌를 누르면 현재 위치로 드라이브에도 저장됩니다', false, 5000);
+    }, true);
+    // 클릭 시점에 로드하면 비동기 대기 중 사용자 제스처가 소멸해 팝업이 차단된다 → 미리 로드
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.onload = () => {
+      this._client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: DRIVE_SCOPE,
+        callback: r => this._onToken(r),
+        error_callback: err => {
+          const blocked = err && err.type === 'popup_failed_to_open';
+          if (this._loginFailed(blocked ? '팝업이 차단됐다면 주소창에서 팝업을 허용하세요' : '')) return;
+          showToast(blocked ? '로그인 팝업이 차단되었습니다. 팝업을 허용한 뒤 다시 시도하세요.'
+                            : 'Google 로그인이 취소되었습니다.', true);
+        },
+      });
+    };
+    s.onerror = () => { this._gisFailed = true; console.warn('drive: GIS script load failed'); };
+    document.head.appendChild(s);
+  },
+
+  isConnected() { return !!this._token; },
+  ready() { return !!this._token && Date.now() < this._exp; },
+  entries() { return this._token && this.lib ? this.lib.entries : []; },
+  sameDeck(docs) { return state.docs.length === docs.length && docs.every((d, i) => state.docs[i] === d); },
+  // 보류된 드라이브 위치가 있으면 버려도 되는지 묻는다(✕ 닫기·➕ PDF 추가 공통). 없으면 true
+  pendingOk(doing, ask) {
+    const p = this.pendingSave;
+    return !p || confirm(`드라이브에 아직 반영하지 않은 위치(${p.page}페이지)가 있습니다. ${doing} 반영되지 않습니다. ${ask}`);
+  },
+
+  // 한 번에 하나만 — 진행 중이면 무시(더블클릭으로 덱이 두 번 열리거나 중복 업로드되는 것을 막는다)
+  async exclusive(fn) {
+    if (this.busy) return;
+    this.busy = true;
+    try { return await fn(); } finally { this.busy = false; }
+  },
+
+  // 연결(토큰)이 유효하면 바로 fn, 아니면 로그인 팝업 → 성공 시 fn, 끝나지 못하면 onFail(hint).
+  // requestAccessToken은 반드시 클릭 핸들러 안에서 동기적으로 불려야 팝업이 열린다.
+  ensure(fn, onFail = null) {
+    if (this.ready()) { fn(); return; }
+    if (!this._client) {
+      if (onFail) { onFail(this._gisFailed ? 'Google 로그인 모듈을 불러오지 못했습니다 — 페이지를 새로고침(F5)하세요' : 'Google 로그인 모듈을 준비하는 중입니다'); return; }
+      showToast(this._gisFailed
+        ? 'Google 로그인 모듈을 불러오지 못했습니다 — 인터넷 연결을 확인한 뒤 페이지를 새로고침(F5)하세요.'
+        : 'Google 로그인 모듈을 준비하는 중입니다. 잠시 후 다시 시도하세요.', true, 5000);
+      return;
+    }
+    this._pending = fn;
+    this._pendingFail = onFail;
+    // 재연결(만료·401)은 같은 계정으로 짧게, 첫 연결은 계정 선택(공용 PC)
+    this._client.requestAccessToken(this._email ? { prompt: '', login_hint: this._email } : {});
+  },
+
+  // 로그인이 끝나지 못함 — 대기 작업을 버리고, 실패 작업이 있으면 그쪽이 안내한다(true 반환)
+  _loginFailed(hint) {
+    const fail = this._pendingFail;
+    this._pending = this._pendingFail = null;
+    if (fail) fail(hint);
+    return !!fail;
+  },
+
+  async _onToken(resp) {
+    if (resp.error || !google.accounts.oauth2.hasGrantedAllScopes(resp, DRIVE_SCOPE)) {
+      if (!this._loginFailed('권한 화면에서 Google Drive 항목을 허용하세요'))
+        showToast('드라이브 접근이 허용되지 않아 연결하지 못했습니다 — 다시 연결하고 권한 화면에서 Google Drive 항목을 허용하세요.', true, 5000);
+      return;
+    }
+    const then = this._pending, fail = this._pendingFail;
+    this._pending = this._pendingFail = null;
+    this._token = resp.access_token;
+    this._exp   = Date.now() + ((Number(resp.expires_in) || 3600) - 60) * 1000;
+    try {
+      const me = await this._json('GET', `${DRIVE_API}/about?fields=user(emailAddress)`);
+      const email = (me.user && me.user.emailAddress) || '';
+      if (email !== this._email || !this.lib) {   // 첫 연결·401 뒤·다른 계정 → 목록 다시 읽기
+        this._email = email;
+        this.lib = null;
+        await this.refresh();
+      }
+    } catch (e) {
+      if (e.quiet) { if (fail) fail(''); return; }
+      console.warn('drive:', e);
+      this._reset();
+      const msg = e.status === 403 ? '드라이브 API가 허용되지 않았습니다 — Google Cloud에서 Drive API 사용 설정을 확인하세요.'
+                                   : '드라이브에 연결하지 못했습니다 — 인터넷 연결을 확인하세요.';
+      if (fail) fail(msg.replace(/\.$/, '')); else showToast(msg, true, 5000);
+      return;
+    }
+    if (then) then();
+  },
+
+  disconnect() {
+    if (this._token) google.accounts.oauth2.revoke(this._token, () => {});
+    this._reset();
+    // 앱 연결만 끊긴다 — 브라우저의 Google 로그인은 남으므로 공용 PC면 로그아웃까지 안내
+    showToast('연결을 해제했습니다. 공용 PC라면 Google 로그아웃도 해 주세요.', false, 5000);
+  },
+
+  // keepHint: 401(만료)로 끊긴 경우 — 다음 재연결을 같은 계정으로 짧게(login_hint)
+  _reset(keepHint = false) {
+    this._token = null; this._exp = 0;
+    if (!keepHint) this._email = '';
+    this._folderP = this._libP = null;
+    this.lib = null; this.loading = false; this.error = '';
+    RecentFiles.render();   // 드라이브 항목만 사라지고 로컬 항목은 그대로
+  },
+
+  _expired() {
+    this._reset(true);
+    showToast('드라이브 연결이 만료되었습니다. 다시 연결해 주세요.', true, 5000);
+    return Object.assign(new Error('drive: 401'), { quiet: true });
+  },
+
+  paintBar() {
+    if (!DRIVE_ON) return;
+    const on = this.isConnected();
+    $('drive-connect-btn').hidden = on;
+    for (const id of ['drive-user', 'drive-refresh-btn', 'drive-disconnect-btn', 'drive-note']) $(id).hidden = !on;
+    $('drive-user').textContent = on ? '☁ ' + (this._email || 'Google 드라이브') : '';
+  },
+
+  // 드라이브 오류 안내 — 401은 _expired가 이미 안내했으므로 조용히. 사유를 알 수 있으면 사유로.
+  // head: "이 PC에는 저장했지만, " 처럼 어떤 사유든 앞에 붙여야 하는 결과 안내
+  fail(e, msg, head = '') {
+    if (e && e.quiet) return;
+    console.warn('drive:', e);
+    const text = e && e.bad ? '드라이브 목록 파일(library.json) 형식을 알 수 없어 저장하지 않았습니다.'
+      : e && /^(storageQuotaExceeded|quotaExceeded)$/.test(e.reason || '')
+        ? '드라이브 저장 공간이 부족합니다 — drive.google.com에서 저장 용량을 확인하세요.'
+      : e && (e.network || e instanceof TypeError) ? '네트워크 연결을 확인해 주세요 — 드라이브에 연결하지 못했습니다.'
+      : msg + (e && e.status ? ` (오류 ${e.status})` : '');
+    showToast(head + text, true, 5000);
+  },
+
+  // Drive 오류 본문에서 사유(reason) 추출 — 저장 공간 부족 등 안내에 쓴다
+  _httpError(status, body) {
+    let reason = '';
+    try { reason = JSON.parse(body).error.errors[0].reason || ''; } catch (e) {}
+    return Object.assign(new Error(`drive: HTTP ${status}${reason ? ' ' + reason : ''}`), { status, reason });
+  },
+
+  async _fetch(method, url, opt = {}) {
+    if (!this._token) throw Object.assign(new Error('drive: not connected'), { quiet: true });
+    let r;
+    try {
+      r = await fetch(url, { method, body: opt.body, cache: 'no-store',   // 공용 PC 디스크 캐시에 남기지 않음
+        headers: { Authorization: `Bearer ${this._token}`, ...opt.headers } });
+    } catch (e) { throw Object.assign(new Error('drive: network'), { network: true }); }
+    if (r.status === 401) throw this._expired();   // 토큰 만료·폐기 → 연결 해제 상태로. 자동 재팝업 금지(제스처 없음)
+    if (!r.ok) throw this._httpError(r.status, await r.text().catch(() => ''));
+    return r;
+  },
+
+  async _json(method, url, body) {
+    const r = await this._fetch(method, url, body === undefined ? {} : {
+      body: JSON.stringify(body), headers: { 'Content-Type': 'application/json; charset=UTF-8' } });
+    return r.json();
+  },
+
+  // createdTime 순 — 두 PC가 동시에 만들어 중복이 생겨도 모두 같은(가장 오래된) 것을 고른다
+  async _find(q, fields = 'files(id)') {
+    const p = new URLSearchParams({ q, fields, orderBy: 'createdTime', spaces: 'drive', pageSize: '100' });
+    return (await this._json('GET', `${DRIVE_API}/files?${p}`)).files || [];
+  },
+
+  _folder() {
+    return this._folderP ||= (async () => {
+      const [f] = await this._find(`mimeType='application/vnd.google-apps.folder' and name='${DRIVE_FOLDER}' and trashed=false`);
+      if (f) return f.id;
+      return (await this._json('POST', `${DRIVE_API}/files?fields=id`, {
+        name: DRIVE_FOLDER, mimeType: 'application/vnd.google-apps.folder', appProperties: { lat: 'root' },
+      })).id;
+    })().catch(e => { this._folderP = null; throw e; });
+  },
+
+  // library.json id. 없으면 메타데이터+내용을 multipart 한 요청으로 만든다
+  // (두 요청으로 나누면 두 번째가 실패했을 때 0바이트 파일이 남는다)
+  _libId() {
+    return this._libP ||= (async () => {
+      const folder = await this._folder();
+      const [f] = await this._find(`name='library.json' and '${driveQ(folder)}' in parents and trashed=false`);
+      if (f) return f.id;
+      const b = 'lat' + Math.random().toString(36).slice(2);
+      const body = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`
+        + JSON.stringify({ name: 'library.json', parents: [folder], mimeType: 'application/json' })
+        + `\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(DRIVE_EMPTY)}\r\n--${b}--`;
+      const r = await this._fetch('POST', `${DRIVE_UPLOAD}/files?uploadType=multipart&fields=id`, {
+        body, headers: { 'Content-Type': `multipart/related; boundary=${b}` } });
+      return (await r.json()).id;
+    })().catch(e => { this._libP = null; throw e; });
+  },
+
+  _write(id, entries) {
+    return this._fetch('PATCH', `${DRIVE_UPLOAD}/files/${encodeURIComponent(id)}?uploadType=media`, {
+      body: JSON.stringify({ v: 1, entries }),
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    });
+  },
+
+  // library.json 읽기. 빈 파일은 빈 목록(생성 직후 등). 형식이 다르면(손상·미래 버전)
+  // 빈 목록 + bad → 쓰기 금지(덮어쓰지 않는다). 파일·폴더가 사라졌으면(404) 캐시를 버리고 한 번 더.
+  async _read(retry = true) {
+    let r;
+    try { r = await this._fetch('GET', `${DRIVE_API}/files/${encodeURIComponent(await this._libId())}?alt=media`); }
+    catch (e) {
+      if (e.status !== 404 || !retry) throw e;
+      this._folderP = this._libP = null;
+      return this._read(false);
+    }
+    const text = (await r.text()).trim();
+    if (!text) return { entries: [] };
+    let lib = null;
+    try { lib = JSON.parse(text); } catch (e) {}
+    if (!lib || lib.v !== 1 || !Array.isArray(lib.entries)) return { entries: [], bad: true };
+    const ok = e => e && typeof e.id === 'string' && typeof e.saved === 'boolean'
+      && typeof e.time === 'number' && Array.isArray(e.names) && Array.isArray(e.fileIds)
+      && e.names.length > 0 && e.names.length === e.fileIds.length
+      && e.names.every(n => typeof n === 'string') && e.fileIds.every(n => typeof n === 'string');
+    return { entries: lib.entries.filter(ok) };
+  },
+
+  // 새로고침 버튼(목록 오류 행의 버튼 포함) — 만료면 재연결, 진행 중 작업과 겹치지 않게
+  refreshClick() {
+    if (this.busy) return;
+    this.ensure(() => this.exclusive(() => this.refresh()));
+  },
+
+  // 폴더·library id 캐시를 버리고 다시 찾는다(드라이브에서 지웠거나 휴지통으로 옮긴 경우 복구)
+  async refresh() {
+    if (!this._token) return;
+    this._folderP = this._libP = null;
+    this.loading = true;
+    this.error = '';
+    RecentFiles.render();
+    try {
+      this.lib = await this._read();
+      if (this.lib.bad) {
+        this.error = '드라이브 목록 파일(library.json)을 읽을 수 없습니다';
+        showToast('드라이브 목록 파일(library.json)을 읽을 수 없어 빈 목록으로 표시합니다.', true, 5000);
+      }
+    } catch (e) {
+      if (this._token) this.error = '드라이브 목록을 불러오지 못했습니다';
+      this.fail(e, '드라이브 목록을 불러오지 못했습니다.');
+    }
+    this.loading = false;
+    RecentFiles.render();
+  },
+
+  // 읽기-수정-쓰기. 매번 최신본을 읽어 다른 PC의 변경을 덮지 않게 한다. fn이 false면 쓰지 않음.
+  update(fn) {
+    const run = async () => {
+      const lib = await this._read();
+      if (lib.bad) throw Object.assign(new Error('drive: bad library'), { bad: true });
+      if (fn(lib.entries) !== false) await this._write(await this._libId(), lib.entries);
+      this.lib = lib;   // 쓰지 않았어도 방금 읽은 최신본(다른 PC 변경 포함)으로 목록 갱신
+      this.error = '';
+      RecentFiles.render();
+    };
+    return (this._q = this._q.then(run, run));
+  },
+
+  _upsert(list, e) {
+    const i = list.findIndex(x => x.id === e.id);
+    if (i < 0) list.push(e); else list[i] = e;
+  },
+
+  // "최근 연 파일"(saved:false) 기록 — 같은 id의 saved:true가 있으면 건드리지 않고, 8개 초과분은 오래된 것부터 제거
+  _putRecent(list, e) {
+    if (list.some(x => x.id === e.id && x.saved)) return false;
+    this._upsert(list, e);
+    const olds = list.filter(x => x.saved === false && x.id !== e.id)
+                     .sort((a, b) => b.time - a.time)
+                     .slice(RECENT_MAX - 1);
+    for (const o of olds) list.splice(list.indexOf(o), 1);
+  },
+
+  // 로컬에서 연 덱이 드라이브 목록에도 있으면 연동(📌 진도가 드라이브에도 반영되게)
+  link() {
+    if (!this.isConnected() || !this.lib) return;
+    const e = this.lib.entries.find(x => x.id === deckId(state.docs.map(d => d.name)));
+    if (!e) return;
+    const docs = state.docs.slice();
+    state.driveFileIds = docs.map(d => e.fileIds[e.names.indexOf(d.name)]);
+    this.record();
+    this._checkStale(docs, state.driveFileIds);
+  },
+
+  // 이 PC의 파일과 드라이브 파일의 크기가 다르면(수정본) 알리기만 한다 — 교체는 📌/☁ 때
+  async _checkStale(docs, fileIds) {
+    let stale = false;
+    try {
+      for (let i = 0; i < docs.length && !stale; i++) {
+        const m = await this._json('GET', `${DRIVE_API}/files/${encodeURIComponent(fileIds[i])}?fields=size,trashed`);
+        stale = m.trashed || Number(m.size) !== docs[i].bytes.byteLength;
+      }
+    } catch (e) {
+      if (e.status !== 404) { if (!e.quiet) console.warn('drive: stale check failed', e); return; }
+      stale = true;   // 드라이브 파일이 사라짐 → 📌/☁ 때 새로 올린다
+    }
+    if (stale && this.sameDeck(docs)) {
+      showToast('이 PC의 PDF가 드라이브에 올린 파일과 다릅니다 — 📌 위치 저장이나 ☁ 드라이브 저장을 누르면 드라이브 파일이 이 PC의 파일로 바뀝니다.', false, 6000);
+    }
+  },
+
+  // 드라이브 연동 덱을 열었을 때 "최근 연 파일" 기록(saved:true가 있으면 쓰지 않음)
+  record() {
+    const names = state.docs.map(d => d.name);
+    const e = { id: deckId(names), names, fileIds: state.driveFileIds, time: Date.now(), saved: false };
+    return this.update(list => this._putRecent(list, e))
+      .catch(x => { if (!x.quiet) console.warn('drive: recent update failed', x); });   // 부가 기능 — 강의 시작 순간 빨간 토스트는 띄우지 않는다
+  },
+
+  // 📌 — 드라이브에 saved:true로 저장. fileIds가 없으면(드라이브에서 연 덱) 기존 항목의 파일 참조를 유지
+  // (다른 PC가 새 버전을 올렸을 수 있다).
+  savePos(label, page, fileIds) {
+    const names = state.docs.map(d => d.name), id = deckId(names);
+    return this.update(list => {
+      const old = list.find(e => e.id === id);
+      const keep = !fileIds && old;
+      this._upsert(list, { id, names: keep ? old.names : names,
+                           fileIds: keep ? old.fileIds : (fileIds || state.driveFileIds),
+                           label, page, time: Date.now(), saved: true });
+    });
+  },
+
+  _progress(text) {
+    $('loading-text').textContent = text;
+    loadingOverlay.classList.add('visible');
+  },
+
+  // ☁ 드라이브 저장 — 이 강의 파일을 드라이브로 복사한다. 이름 입력·위치 변경 없음.
+  //   이 PC 북마크 또는 드라이브 북마크가 있으면(최신 쪽) saved:true, 없으면 saved:false(최근 연 파일)
+  async saveDeck() {
+    if (!state.pdf) return;
+    this._progress('드라이브에 올리는 중…');   // 첫 요청 전에 바로 — 무반응 구간·연타 방지
+    const docs = state.docs.slice(), names = docs.map(d => d.name), id = deckId(names);
+    try {
+      // 올리기 전에 목록을 쓸 수 있는지 확인(손상된 library면 올린 PDF가 고아 파일로 남는다)
+      if ((await this._read()).bad) throw Object.assign(new Error('drive: bad library'), { bad: true });
+      // 드라이브에서 받은 덱은 다시 올리지 않는다(다른 PC가 올린 새 버전을 되돌리지 않게)
+      const fileIds = state.driveOpened ? state.driveFileIds
+        : await this.ensureUploaded(docs, state.driveFileIds, f =>
+            this._progress(`드라이브에 올리는 중… ${Math.floor(f * 100)}%`));
+      const bmLocal = (await RecentFiles._local()).find(e => e.id === id && e.saved) || null;
+      let saved = false;
+      await this.update(list => {
+        const old = list.find(e => e.id === id);
+        const bm = [bmLocal, old && old.saved ? old : null].filter(Boolean).sort((a, b) => b.time - a.time)[0];
+        saved = !!bm;
+        if (bm) this._upsert(list, { id, names, fileIds, label: bm.label, page: bm.page, time: bm.time, saved: true });
+        else this._putRecent(list, { id, names, fileIds, time: Date.now(), saved: false });
+      });
+      loadingOverlay.classList.remove('visible');
+      if (this.sameDeck(docs)) {
+        state.driveFileIds = fileIds;   // 이후 📌가 드라이브에도 저장
+        // 보류 위치는 이미 이 PC 북마크에 들어 있다 — 북마크(또는 더 최신인 드라이브 값)를 방금 맞췄으므로 해제
+        if (bmLocal && state.handles) this.pendingSave = null;
+      }
+      showToast(`드라이브에 저장했습니다 — 다른 PC의 '${saved ? '저장된 강의' : '최근 연 파일'}'에 표시됩니다`, false, 4000);
+    } catch (e) {
+      loadingOverlay.classList.remove('visible');
+      this.fail(e, '드라이브 저장에 실패했습니다.');
+    }
+  },
+
+  // 덱의 PDF들이 드라이브 폴더에 이 PC의 내용으로 있게 한다 → fileIds(docs 순서).
+  //   같은 이름·같은 크기 → 재사용 / 같은 이름·다른 크기(수정본) → 같은 fileId에 내용 교체
+  //   (다른 항목의 참조가 깨지지 않는다 — prefer: 이 덱이 쓰던 fileId를 우선) / 없으면 새로 올림
+  async ensureUploaded(docs, prefer, onProgress) {
+    const folder = await this._folder();
+    const ids = [];
+    for (let i = 0; i < docs.length; i++) {
+      const { name, bytes } = docs[i];
+      const found = await this._find(
+        `name='${driveQ(name)}' and '${driveQ(folder)}' in parents and trashed=false`, 'files(id,size)');
+      const same = found.find(f => Number(f.size) === bytes.byteLength);
+      if (same) { ids.push(same.id); continue; }
+      const target = found.find(f => prefer && f.id === prefer[i]) || found[0];
+      onProgress(i / docs.length);
+      ids.push(await this._upload(folder, name, bytes, target && target.id,
+                                  f => onProgress((i + f) / docs.length)));
+    }
+    return ids;
+  },
+
+  // resumable 업로드 — fileId가 있으면 그 파일의 내용만 교체(PATCH), 없으면 새 파일(POST).
+  // 바이트 전송은 업로드 진행률을 받으려고 XHR을 쓴다(fetch는 업로드 진행 이벤트가 없다).
+  async _upload(folder, name, bytes, fileId, onProgress) {
+    const headers = { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/pdf' };
+    const init = fileId
+      ? await this._fetch('PATCH', `${DRIVE_UPLOAD}/files/${encodeURIComponent(fileId)}?uploadType=resumable&fields=id`,
+                          { body: '{}', headers })
+      : await this._fetch('POST', `${DRIVE_UPLOAD}/files?uploadType=resumable&fields=id`,
+                          { body: JSON.stringify({ name, parents: [folder], mimeType: 'application/pdf' }), headers });
+    const session = init.headers.get('Location');
+    if (!session) throw new Error('drive: no upload session');
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open('PUT', session);
+      x.setRequestHeader('Authorization', `Bearer ${this._token}`);
+      x.setRequestHeader('Content-Type', 'application/pdf');
+      x.upload.onprogress = ev => { if (ev.lengthComputable) onProgress(ev.loaded / ev.total); };
+      x.onload = () => {
+        if (x.status === 401) return reject(this._expired());
+        if (x.status < 200 || x.status >= 300) return reject(this._httpError(x.status, x.responseText));
+        try { resolve(JSON.parse(x.responseText).id || fileId); } catch (e) { reject(e); }
+      };
+      x.onerror = () => reject(Object.assign(new Error('drive: network'), { network: true }));
+      x.send(bytes);
+    });
+  },
+
+  // 파일 받기 → Blob. 메타데이터 크기로 진행률 계산(휴지통에 있으면 없는 파일로 취급)
+  async download(fileId, onProgress) {
+    const url  = `${DRIVE_API}/files/${encodeURIComponent(fileId)}`;
+    const meta = await this._json('GET', `${url}?fields=size,trashed`);
+    if (meta.trashed) throw Object.assign(new Error('drive: trashed'), { status: 404 });
+    const r    = await this._fetch('GET', `${url}?alt=media`);
+    const size = Number(meta.size) || 0;
+    if (!r.body || !size) return r.blob();
+    const reader = r.body.getReader(), parts = [];
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+      got += value.length;
+      onProgress(Math.min(got / size, 1));
+    }
+    return new Blob(parts);
+  },
+
+  // 드라이브에서 열기 → 로컬 IndexedDB에는 기록하지 않는다(공용 PC 흔적 금지)
+  async open(row) {
+    this._progress('드라이브에서 받는 중…');   // 첫 요청 전에 바로 — 화면을 덮어 두 번째 클릭을 막는다
+    const e = row.drive, n = e.fileIds.length;
+    try {
+      const files = [];
+      for (let i = 0; i < n; i++) {
+        const blob = await this.download(e.fileIds[i], f =>
+          this._progress(`드라이브에서 받는 중… ${Math.floor((i + f) / n * 100)}%`));
+        files.push(new File([blob], e.names[i], { type: 'application/pdf' }));
+      }
+      if (!(await PDFRenderer.loadFiles(files, { append: false }))) return;   // 오버레이·오류 안내는 loadFiles가
+      state.driveFileIds = state.docs.map(d => e.fileIds[e.names.indexOf(d.name)]);
+      state.driveOpened = true;
+      goToPage(row.page || 1);
+      this.record();
+    } catch (err) {
+      loadingOverlay.classList.remove('visible');
+      if (err.status === 404) {
+        showToast('드라이브에서 파일을 찾을 수 없습니다 — 목록에서 제거했습니다(드라이브 휴지통을 확인하세요)', true, 5000);
+        this.update(list => {
+          const i = list.findIndex(x => x.id === row.id);
+          if (i < 0) return false;
+          list.splice(i, 1);
+        }).catch(x => this.fail(x, '드라이브 목록을 갱신하지 못했습니다.'));
+      } else {
+        this.fail(err, '드라이브에서 파일을 받지 못했습니다.');
+      }
     }
   },
 };
@@ -3237,6 +4068,7 @@ const FileHandler = {
         state.handles = pairs.map(p => p.h);
         RecentFiles.record(state.docs.map(d => d.name), state.handles);
       }
+      Drive.link();   // 드라이브 목록에도 있는 덱이면 연동(📌 진도가 드라이브에도 반영)
     }
   },
 };
@@ -3446,6 +4278,7 @@ document.addEventListener('paste', e => {
 // ══════════════════════════════════════════════════════════
 $('app-version').textContent = 'v' + APP_VERSION;
 FileHandler.init();
+Drive.init();          // GOOGLE_CLIENT_ID가 비어 있으면 아무것도 안 한다
 RecentFiles.init();
 PageScrollRail.init();
 KeyboardHandler.init();
