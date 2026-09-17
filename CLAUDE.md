@@ -176,15 +176,16 @@ const KEYS = { tool: 'lat_tool', color: 'lat_color', width: 'lat_width' }
 - canvas bounding rect 기준 범위 밖 `mousedown` 무시
 
 ### IDLE 화면 푸터
-IDLE 화면 하단에만 바이브코딩랩 푸터 표시. PRESENTING 모드 시 숨김.
+IDLE 화면 하단에만 **한 줄** 푸터 표시. PRESENTING 모드 시 숨김.
+(2026-09-17 사용자 요청으로 바이브코딩랩 푸터를 대체 — 설계서 v1.0의 푸터 스펙보다 우선. 되돌리지 말 것)
 
 ```html
-<footer id="vibe-footer" style="...">
-  <p>더 많은 앱을 활용하거나 만들고 싶으면</p>
-  <a href="https://www.vibecodinglab.ai.kr/" target="_blank">🚀 바이브코딩랩 방문하기</a>
-  <p>vibecodinglab.ai.kr</p>
+<footer id="vibe-footer">
+  좀 더 많은 정보와 앱을 알고 싶으면
+  <a href="https://www.ai4insurance.com/" target="_blank" rel="noopener noreferrer">AI For Insurance로 방문해 주세요</a>
 </footer>
 ```
+- 푸터 높이를 바꾸면 `#idle-screen`의 `padding-bottom`과 목록 `max-height` 예약값을 함께 고칠 것(마지막 행이 푸터에 가리지 않게).
 
 ---
 
