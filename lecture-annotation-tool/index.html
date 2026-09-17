@@ -1185,12 +1185,12 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-17.1';
+const APP_VERSION = '2026-09-17.2';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
-// 전부 없다(기존 동작 그대로). 설정 방법: _workspace/13_drive_setup_guide.md
-const GOOGLE_CLIENT_ID = '';
+// 전부 없다(기존 동작 그대로). 설정 방법: GOOGLE_DRIVE_SETUP.md
+const GOOGLE_CLIENT_ID = '992720143470-97kt935vtao5m7j5qn3etncq3pdn1ulo.apps.googleusercontent.com';
 const DRIVE_ON = !!GOOGLE_CLIENT_ID && location.protocol !== 'file:';   // GIS는 file:// 미지원
 
 // ══════════════════════════════════════════════════════════
