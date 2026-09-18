@@ -168,16 +168,16 @@
       padding-bottom: 61px;    /* 고정 푸터(한 줄 37px) + 여유 24 */
       gap: 24px;
       /* 목록 박스 max-height 계산에서 뺄 "목록 위아래 고정 높이" — 아래 #recent-list 주석 참고 */
-      --idle-reserve: 392px;
+      --idle-reserve: 398px;
     }
     /* 드라이브 바(높이 24 + 간격 8)가 목록 위에 들어가는 만큼 더 뺀다 */
-    body.drive-on #idle-screen { --idle-reserve: 424px; }
+    body.drive-on #idle-screen { --idle-reserve: 430px; }
     /* 낮은 화면의 학교 PC — 드롭존보다 드라이브 목록이 중요하다. 드롭존 100px을 줄인 만큼
        reserve도 줄여 브라우저 도구 막대로 더 낮아진 창에서도 목록 5행이 보이게 한다.
        Client ID 미설정 배포본의 배치는 건드리지 않도록 drive-on에만 적용 */
     @media (max-height: 680px) {
       body.drive-on #drop-zone { height: 180px; }
-      body.drive-on #idle-screen { --idle-reserve: 324px; }
+      body.drive-on #idle-screen { --idle-reserve: 330px; }
     }
     #idle-screen.hidden { display: none; }
 
@@ -221,8 +221,8 @@
       gap: 20px;
       flex: 0 0 auto;   /* 푸터 회피는 #idle-screen의 padding-bottom이 담당 */
     }
-    /* 670px(420+20+230)가 들어갈 여유가 없으면 세로로 스택 */
-    @media (max-width: 720px) {
+    /* 800px(420+20+360)가 들어갈 여유가 없으면 세로로 스택 */
+    @media (max-width: 840px) {
       #idle-lists { flex-direction: column; align-items: center; }
     }
 
@@ -232,21 +232,29 @@
     }
     #recent-section.hidden { display: none; }
 
-    /* 우측 "최근 연 파일" — 보조 목록이라 좌측보다 좁고 작게 */
+    /* 우측 "구글 드라이브 저장" — 좌측과 대등한 주 목록(행 높이·글자 크기 동일).
+       폭만 좁다: 강의 이름이 잘리지 않을 만큼은 확보해야 한다(230px에서는 이름 칸이 40px뿐이었다). */
     #opened-section {
-      width: 230px;
+      width: 360px;
       flex: 0 0 auto;
     }
     #opened-section.hidden { display: none; }
-    #opened-list .recent-item { padding: 5px 10px; }
-    #opened-list .recent-name,
-    #opened-list .recent-time,
-    #opened-list .recent-empty { font-size: 11px; }
 
+    /* 제목 줄 — 좌측엔 정렬 컨트롤이 들어간다. 두 목록이 같은 높이에서 시작하도록 높이를 고정한다
+       (높이를 바꾸면 --idle-reserve도 같이 고칠 것). */
     .recent-title {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 20px;
       font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
       color: var(--text-dim);
       margin: 0 4px 8px;
+    }
+    #list-sort {
+      font-family: inherit; font-size: 11px; letter-spacing: 0;
+      color: var(--text-muted); background: var(--surface);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0 2px;
+      cursor: pointer;
     }
     #recent-list, #opened-list {
       border: 1px solid var(--border);
@@ -255,15 +263,15 @@
       /* 5행까지 보이고 그 이상은 목록 안에서 스크롤한다.
          07 라운드 버그(= max-height만 주면 목록 박스 자체가 고정 푸터 아래로 깔려,
          안쪽을 끝까지 내려도 마지막 행을 누를 수 없었다)를 막는 건 아래 calc()다.
-         --idle-reserve 392px = #idle-screen padding-bottom 61 + 드롭존 280 + gap 24 + 제목 14.67+8 + 여유 4.33
-         (드라이브 바가 있으면 +32 → 424px, 낮은 화면은 드롭존 −100 → 324px)
+         --idle-reserve 398px = #idle-screen padding-bottom 61 + 드롭존 280 + gap 24 + 제목 20+8 + 여유 5
+         (드라이브 바가 있으면 +32 → 430px, 낮은 화면은 드롭존 −100 → 330px)
          → 뷰포트가 낮으면 5행 상한 대신 calc()가 이겨서 박스 하단이 항상 푸터 위에서 끝난다.
          하한 2행보다 더 낮은 뷰포트는 예전처럼 #idle-screen 페이지 스크롤로 폴백(도달 가능). */
       overflow-y: auto;
       scrollbar-gutter: stable;   /* 5개 경계에서 스크롤바가 생겨도 행 폭이 흔들리지 않게 */
     }
     #recent-list { max-height: max(72px, min(177px, calc(100vh - var(--idle-reserve)))); }  /* 행 35(실측) × 5 + 테두리 2, 하한 2행 */
-    #opened-list { max-height: max(52px, min(127px, calc(100vh - var(--idle-reserve)))); }  /* 행 25(실측) × 5 + 테두리 2, 하한 2행 */
+    #opened-list { max-height: max(72px, min(177px, calc(100vh - var(--idle-reserve)))); }  /* 좌측과 동일: 행 35 × 5 + 테두리 2 */
     #recent-list::-webkit-scrollbar, #opened-list::-webkit-scrollbar { width: 8px; }
     #recent-list::-webkit-scrollbar-thumb, #opened-list::-webkit-scrollbar-thumb {
       background: var(--border2); border-radius: 4px;
@@ -333,8 +341,6 @@
     a.drive-btn { display: inline-block; text-decoration: none; }
     a.drive-btn[hidden] { display: none; }
     #drive-note { color: var(--text-muted); }   /* 공용 PC 로그아웃 안내 — dim(대비 2.6:1)은 프로젝터에서 안 보인다 */
-    /* 드라이브에 있는 행 표시 — 이름을 가리지 않게 작고 흐리게 */
-    .drive-badge { flex: 0 0 auto; margin-right: -4px; font-size: 11px; opacity: 0.5; }
     .drive-loading { padding: 5px 12px; font-size: 11px; color: var(--text-dim); }
     /* 목록 불러오기 실패 — 토스트가 사라진 뒤에도 "강의 없음"으로 오해하지 않게 남겨 둔다 */
     .drive-error {
@@ -830,7 +836,7 @@
     #toast.error { border-color: #ef4444; color: #f87171; }
 
     /* ── PPT Conversion Modal ──────────────────────────────── */
-    #ppt-modal, #drive-conflict-modal {
+    #ppt-modal, #drive-conflict-modal, #close-deck-modal {
       display: none;
       position: fixed; inset: 0;
       background: var(--modal-overlay);
@@ -838,12 +844,15 @@
       align-items: center;
       justify-content: center;
     }
-    #ppt-modal.visible, #drive-conflict-modal.visible { display: flex; }
+    #ppt-modal.visible, #drive-conflict-modal.visible, #close-deck-modal.visible { display: flex; }
     /* 드라이브 같은 이름 파일 충돌 — 파일별 한 줄, 덮어쓰기는 파괴적이라 빨강 hover */
     #drive-conflict-list { list-style: none; }
     #drive-conflict-list li + li { margin-top: 4px; }
     #drive-conflict-modal .conflict-help { font-size: 12px; margin: 16px 0 0; }
     #drive-conflict-modal [data-choice="overwrite"]:hover { color: #ef4444; border-color: #ef4444; background: rgba(239,68,68,0.08); }
+    /* 닫기 모달 — 주석·보류를 버리는 쪽은 빨강 hover */
+    #close-deck-info { white-space: pre-line; }
+    #close-deck-modal [data-choice="close"]:hover { color: #ef4444; border-color: #ef4444; background: rgba(239,68,68,0.08); }
     .ppt-modal-box {
       background: var(--modal-bg);
       border: 1px solid var(--border);
@@ -981,11 +990,16 @@
          FSA 미지원 + 드라이브 미연결이면 계속 hidden -->
     <div id="idle-lists">
       <div id="recent-section" class="hidden">
-        <div class="recent-title">저장된 강의</div>
+        <div class="recent-title">저장된 강의 (이 PC)
+          <select id="list-sort" title="두 목록 모두에 적용">
+            <option value="date">날짜순</option>
+            <option value="name">이름순</option>
+          </select>
+        </div>
         <div id="recent-list"></div>
       </div>
       <div id="opened-section" class="hidden">
-        <div class="recent-title">최근 연 파일</div>
+        <div class="recent-title">구글 드라이브 저장</div>
         <div id="opened-list"></div>
       </div>
     </div>
@@ -1118,6 +1132,19 @@
   </div>
 </div>
 
+<!-- ✕ 닫기 — 위치 저장 안내(주석 경고·드라이브 보류 안내를 한 창에 모은다) -->
+<div id="close-deck-modal" role="dialog" aria-modal="true" aria-labelledby="close-deck-title">
+  <div class="ppt-modal-box">
+    <h2 id="close-deck-title">강의를 닫을까요?</h2>
+    <p class="desc" id="close-deck-info"></p>
+    <div class="ppt-modal-actions">
+      <button class="ppt-action-btn primary"   id="close-deck-save" data-choice="save">위치 저장하고 닫기</button>
+      <button class="ppt-action-btn secondary" data-choice="close">저장 없이 닫기</button>
+      <button class="ppt-action-btn secondary" data-choice="cancel">취소</button>
+    </div>
+  </div>
+</div>
+
 <!-- PPT Conversion Modal -->
 <div id="ppt-modal">
   <div class="ppt-modal-box">
@@ -1211,7 +1238,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-17.4';
+const APP_VERSION = '2026-09-18.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -1228,7 +1255,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 // ══════════════════════════════════════════════════════════
 // AppState
 // ══════════════════════════════════════════════════════════
-const STORAGE_KEYS = { tool: 'lat_tool', color: 'lat_color', width: 'lat_width' };
+const STORAGE_KEYS = { tool: 'lat_tool', color: 'lat_color', width: 'lat_width', sort: 'lat_sort' };
 const COLOR_MAP = { red: '#FF3333', yellow: '#FFE033', lime: '#84CC16', blue: '#3B82F6' };
 
 // 이미지 stroke 렌더링 캐시: src(data URL) → HTMLImageElement
@@ -2626,11 +2653,67 @@ $('clear-all-btn').addEventListener('click', () => {
 
 // ✕ 닫기 — 덱 전체를 버리고 IDLE로 복귀. 도구·색·두께·테마(localStorage)는 유지하고
 // ToolController는 재초기화하지 않는다(state._toolInited 유지 = 리스너 중복 등록 방지).
-function closeDeck() {
-  const annotated = Object.values(state.strokes).filter(a => a && a.length).length;
-  if (annotated && !confirm(`주석이 있는 페이지 ${annotated}개가 삭제됩니다. 닫을까요?`)) return;
-  if (!Drive.pendingOk('닫으면', '닫을까요?')) return;
+// 앱 내부 모달 공통 — 눌린 버튼의 data-choice로 끝난다. Esc·배경 클릭 = 'cancel'.
+// 열려 있는 동안 키를 capture 단계에서 잡아 앱 단축키(Esc = 주석 초기화, 화살표 = 페이지 이동, 숫자 = 도구)를 막고,
+// Tab은 모달 버튼 안에서만 돌게 한다. 붙여넣기(paste)는 아래 paste 리스너가 모달 표시 여부로 막는다.
+function modalChoice(modal, focusSel) {
+  const back = document.activeElement;
+  modal.classList.add('visible');
+  const buttons = [...modal.querySelectorAll('button[data-choice]')].filter(b => !b.hidden);
+  (modal.querySelector(focusSel) || buttons[0]).focus();
+  return new Promise(resolve => {
+    const onClick = e => {
+      const b = e.target.closest('button[data-choice]');
+      if (b) done(b.dataset.choice);
+      else if (e.target === modal) done('cancel');
+    };
+    const onKey = e => {
+      e.stopPropagation();   // 버튼의 Enter/Space 기본 동작은 그대로 둔다
+      if (e.key === 'Escape') { e.preventDefault(); done('cancel'); }
+      else if (e.key === 'Tab') {
+        e.preventDefault();
+        const k = buttons.indexOf(document.activeElement);
+        buttons[(k + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
+      }
+    };
+    const done = choice => {
+      modal.classList.remove('visible');
+      modal.removeEventListener('click', onClick);
+      document.removeEventListener('keydown', onKey, true);
+      if (back && back.focus) back.focus();
+      resolve(choice);
+    };
+    modal.addEventListener('click', onClick);
+    document.addEventListener('keydown', onKey, true);
+  });
+}
 
+// ✕ 닫기 — 위치를 저장할지 먼저 묻는다(주석 경고·드라이브 보류 안내도 이 창에 함께).
+//   저장할 곳이 없으면(핸들 없고 드라이브 연동도 아님) "위치 저장하고 닫기"는 숨긴다.
+async function askClose() {
+  if (!state.pdf) return;
+  if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
+  const local = HAS_FSA && !!state.handles;
+  const drive = DRIVE_ON && !!state.driveFileIds;
+  const annotated = Object.values(state.strokes).filter(a => a && a.length).length;
+  const label = await RecentFiles.savedLabel();
+  const lines = [`현재 ${state.currentPage} / ${state.totalPages} 페이지${label ? ` (${label})` : ''}`];
+  if (annotated) lines.push(`주석이 있는 페이지 ${annotated}개는 저장되지 않고 사라집니다.`);
+  if (Drive.pendingSave) lines.push('드라이브에 아직 반영하지 않은 위치가 있습니다.');
+  $('close-deck-info').textContent = lines.join('\n');
+  $('close-deck-save').hidden = !(local || drive);
+  const choice = await modalChoice($('close-deck-modal'), local || drive ? '[data-choice="save"]' : '[data-choice="close"]');
+  if (choice === 'cancel') return;
+  if (choice === 'save') {
+    await RecentFiles.saveOnClose(local, drive);
+    closeDeck(true);     // 방금 띄운 결과 토스트를 지우지 않는다
+    return;
+  }
+  closeDeck();
+}
+
+// 덱을 바로 닫는다(묻지 않음). keepToast: 닫기 직전에 띄운 안내를 그대로 둔다.
+function closeDeck(keepToast = false) {
   // 상태를 먼저 비운다 — 그래야 아래 exitPresentationMode의 재렌더가 state.pdf 검사에서
   // 스스로 걸러진다(순서를 뒤집으면 뒤늦은 showPage가 currentPage를 되돌려 놓는다).
   SelectTool.deselect();
@@ -2649,13 +2732,13 @@ function closeDeck() {
 
   if (isPresenting()) exitPresentationMode();
   loadingOverlay.classList.remove('visible');
-  toastEl.className = '';
+  if (!keepToast) toastEl.className = '';
   downloadPdfBtn.classList.remove('visible');
   appEl.classList.remove('visible');
   idleScreen.classList.remove('hidden');
   RecentFiles.render();   // 방금 닫은 파일이 목록 맨 위 → 1클릭 재열기
 }
-$('close-pdf-btn').addEventListener('click', closeDeck);
+$('close-pdf-btn').addEventListener('click', () => askClose());
 $('save-pos-btn') .addEventListener('click', () => RecentFiles.save());
 // ☁ — 미연결·토큰 만료면 클릭 제스처 안에서 로그인 팝업을 먼저 띄우고, 연결되면 이어서 복사
 $('drive-save-btn').addEventListener('click', () => {
@@ -3100,7 +3183,7 @@ const PptHandler = {
 //   연결 해제 시 드라이브 항목만 사라지고 이 PC의 로컬 항목은 그대로 남는다.
 // ══════════════════════════════════════════════════════════
 const HAS_FSA     = typeof window.showOpenFilePicker === 'function';
-const RECENT_MAX  = 8;   // "최근 연 파일"만의 상한 (북마크는 무제한)
+const RECENT_MAX  = 8;   // 자동 기록(saved:false)만의 상한 (이름 붙여 저장한 항목은 무제한)
 // 덱 식별자 = 파일명 집합. 로컬·드라이브 항목이 같은 규칙이라 id로 병합된다.
 const deckId      = names => names.slice().sort().join('\0');
 
@@ -3140,7 +3223,15 @@ function recentTimeLabel(t) {
 }
 
 const RecentFiles = {
-  init() { this.render(); },
+  init() {
+    const sel = $('list-sort');
+    sel.value = this.sortMode();
+    sel.addEventListener('change', () => {
+      localStorage.setItem(STORAGE_KEYS.sort, sel.value === 'name' ? 'name' : 'date');
+      this.render();
+    });
+    this.render();
+  },
 
   async _local() {
     if (!HAS_FSA) return [];
@@ -3148,25 +3239,36 @@ const RecentFiles = {
     catch (e) { console.warn('recent: read failed', e); return []; }
   },
 
-  // 로컬·드라이브 항목을 id로 병합한 행 목록 { id, names, saved, label, page, time, local, drive }.
-  //   saved: 어느 한쪽이라도 saved:true면 true(좌측에만 뜬다).
-  //   label/page/time: 그 saved 값을 가진 쪽 중 time이 최신인 쪽 — 학교에서 진행한 페이지가
-  //   집 PC에서도 이어진다. saved 필드가 없는 로컬 항목(레거시)은 제외(마이그레이션 불필요).
-  async _rows() {
-    const map = new Map();
-    const add = (e, side) => {
-      if (typeof e.saved !== 'boolean') return;
-      if (!map.has(e.id)) map.set(e.id, { id: e.id, names: e.names, local: null, drive: null });
-      map.get(e.id)[side] = e;
-    };
-    (await this._local()).forEach(e => add(e, 'local'));
-    Drive.entries().forEach(e => add(e, 'drive'));
-    return [...map.values()].map(r => {
-      const sides = [r.local, r.drive].filter(Boolean);
-      const saved = sides.some(s => s.saved);
-      const pick  = sides.filter(s => s.saved === saved).sort((a, b) => b.time - a.time)[0];
-      return { ...r, saved, label: pick.label || r.names[0], page: pick.page, time: pick.time };
-    }).sort((a, b) => b.time - a.time);
+  // 이 PC(IndexedDB) 항목 → 행. saved 필드가 없는 예전 자동 기록분은 제외(마이그레이션 불필요)
+  async _localRows() {
+    return (await this._local()).filter(e => typeof e.saved === 'boolean')
+      .map(e => ({ id: e.id, names: e.names, label: e.label, page: e.page, time: e.time, local: e }));
+  },
+
+  // 드라이브(library.json) 항목 → 행. 연결 중일 때만 값이 있다
+  _driveRows() {
+    return Drive.entries().map(e => ({ id: e.id, names: e.names, label: e.label, page: e.page, time: e.time, drive: e }));
+  },
+
+  // 목록에 보이는 이름 — label이 있으면 label, 없으면 첫 파일명(+ 외 N개)
+  displayName(row) {
+    return row.label || row.names[0] + (row.names.length > 1 ? ` 외 ${row.names.length - 1}개` : '');
+  },
+
+  // 정렬 — 두 목록에 같은 기준을 적용한다(localStorage에 유지)
+  sortMode() { return localStorage.getItem(STORAGE_KEYS.sort) === 'name' ? 'name' : 'date'; },
+  _sort(rows) {
+    return this.sortMode() === 'name'
+      ? rows.sort((x, y) => this.displayName(x).localeCompare(this.displayName(y), undefined, { numeric: true, sensitivity: 'base' }))
+      : rows.sort((x, y) => y.time - x.time);
+  },
+
+  // 이 덱의 기존 북마크(이 PC·드라이브 중 time 최신) — 자동 label 결정용
+  async _bookmark() {
+    const id = deckId(state.docs.map(d => d.name));
+    return [...(await this._local()), ...Drive.entries()]
+      .filter(e => e.id === id && e.saved && e.label)
+      .sort((x, y) => y.time - x.time)[0] || null;
   },
 
   // 파일을 열었을 때의 자동 기록(saved:false). 같은 덱의 북마크가 있으면 기록하지 않는다
@@ -3187,10 +3289,40 @@ const RecentFiles = {
     } catch (e) { console.warn('recent: record failed', e); }
   },
 
+  // 이 덱의 기존 북마크 label(이 PC·드라이브 중 time 최신). 없으면 ''
+  async savedLabel() {
+    const bm = await this._bookmark();
+    return (bm && bm.label) || '';
+  },
+
+  // ☁·닫기 저장이 쓰는 자동 이름 — 기존 북마크 label → 없으면 첫 파일명(확장자 제거). 묻지 않는다.
+  async autoLabel() {
+    const names = state.docs.map(d => d.name);
+    return (await this.savedLabel()) || names[0].replace(/\.[^.]+$/, '');
+  },
+
+  // 닫기 모달의 "위치 저장하고 닫기" — 이름을 묻지 않고, 업로드·내용 교체도 하지 않는다.
+  async saveOnClose(local, drive) {
+    const label = await this.autoLabel();
+    const page  = state.currentPage;
+    const docs  = state.docs.slice();
+    if (local && !(await this.saveLocal(label, page))) { showToast('저장에 실패했습니다.', true, 5000); return; }
+    if (!drive) {
+      showToast(`저장했습니다 — ${label} · ${page}페이지${state.driveConflict ? ' (드라이브에는 저장하지 않음)' : ''}`, false, 5000);
+      return;
+    }
+    if (!Drive.ready()) {   // 닫는 중에는 로그인 창을 띄우지 않는다
+      if (local) this._deferDrive(label, page, '');
+      else showToast('드라이브 연결이 만료되어 위치를 저장하지 못했습니다. 다시 연결한 뒤 저장하세요.', true, 5000);
+      return;
+    }
+    await this._pushDrive(label, page, local, docs);
+  },
+
   // 저장 이름 입력 — 기본값은 보류 중인 label → 기존 label(로컬·드라이브 병합) → 첫 파일명. 취소면 null
   async askLabel() {
     const names = state.docs.map(d => d.name);
-    const prev  = (await this._rows()).find(r => r.id === deckId(names) && r.saved);
+    const prev  = await this._bookmark();
     const def   = (Drive.pendingSave && Drive.pendingSave.label)
                || (prev ? prev.label : names[0].replace(/\.[^.]+$/, ''));
     const input = prompt('저장할 이름을 입력하세요:', def);
@@ -3319,14 +3451,12 @@ const RecentFiles = {
     if (!quiet) showToast('목록에서 제거했습니다.');
   },
 
-  // 좌측 ✕ — 드라이브 항목이 섞인 행이면 확인 후 양쪽에서 제거(PDF 파일은 드라이브에 남는다).
+  // 드라이브 목록의 ✕ — 확인 후 드라이브 목록에서만 제거한다(PDF 파일과 이 PC 항목은 그대로).
   //   토큰이 만료됐으면 확인창보다 먼저 재연결한다(확인에 시간이 걸리면 클릭 제스처가 사라져 팝업이 막힘).
-  //   드라이브 삭제가 성공해야 로컬도 지운다 — 실패하면 양쪽 모두 그대로(부분 삭제 없음).
-  removeRow(row) {
+  removeDriveRow(row) {
     if (Drive.busy) return;
-    if (!row.drive) { this.remove(row.id); return; }
     Drive.ensure(() => {
-      if (!confirm('드라이브 목록에서도 제거됩니다. PDF 파일은 드라이브에 남습니다. 계속할까요?')) return;
+      if (!confirm('드라이브 목록에서 제거됩니다. PDF 파일은 드라이브에 남습니다. 계속할까요?')) return;
       Drive.exclusive(async () => {
         try {
           await Drive.update(list => {
@@ -3339,19 +3469,21 @@ const RecentFiles = {
           else Drive.fail(e, '드라이브 목록에서 제거하지 못했습니다 — 목록은 그대로 둡니다.');
           return;
         }
-        if (row.local) await RecentDB.del(row.id).catch(() => {});
         this.render();
-        showToast('목록에서 제거했습니다.');
+        showToast('드라이브 목록에서 제거했습니다.');
       });
     });
   },
 
-  // 행 클릭 — 로컬 핸들이 있으면 로컬 우선, 못 열면(파일 없음·권한 거부) 드라이브로 폴백.
-  // 로컬이 없는 행은 곧바로 드라이브(만료 시 재연결 팝업을 위해 동기 호출).
+  // 행 클릭 — 이 PC 행은 핸들로 열고, 못 열면(파일 없음·권한 거부) 같은 강의가 드라이브에 있을 때 폴백.
+  // 드라이브 행은 곧바로 드라이브에서 받는다(만료 시 재연결 팝업을 위해 동기 호출).
   // 더블클릭·연타로 덱이 두 번 열리지 않게 전 과정을 한 번에 하나만(Drive.exclusive).
   async open(row) {
     if (Drive.busy) return;
-    if (row.local && !(await Drive.exclusive(() => this._openLocal(row)))) return;
+    if (row.local) {
+      row.drive = Drive.entries().find(e => e.id === row.id) || null;   // 로컬이 안 열릴 때의 폴백
+      if (!(await Drive.exclusive(() => this._openLocal(row)))) return;
+    }
     if (row.drive) Drive.ensure(() => Drive.exclusive(() => Drive.open(row)));
   },
 
@@ -3407,31 +3539,28 @@ const RecentFiles = {
     return false;
   },
 
+  // 좌 = 이 PC에 있는 항목 전부, 우 = 드라이브에 있는 항목 전부(같은 강의는 양쪽에 각각 한 줄).
   async render() {
     Drive.paintBar();
-    const sections = [$('recent-section'), $('opened-section')];
-    // 로컬 목록도(FSA 미지원) 드라이브도(미연결) 없으면 두 섹션 모두 숨김 — 예전과 동일
-    if (!HAS_FSA && !Drive.isConnected()) { sections.forEach(s => s.classList.add('hidden')); return; }
-    const rows = await this._rows();
-    this._paint(sections[0], $('recent-list'), rows.filter(r => r.saved), true);
-    this._paint(sections[1], $('opened-list'), rows.filter(r => !r.saved).slice(0, RECENT_MAX), false);
+    const left = $('recent-section'), right = $('opened-section');
+    left.classList.toggle('hidden', !HAS_FSA);
+    right.classList.toggle('hidden', !DRIVE_ON);
+    if (HAS_FSA) this._paint($('recent-list'), this._sort(await this._localRows()), 'local');
+    if (DRIVE_ON) this._paint($('opened-list'), this._sort(this._driveRows()), 'drive');
   },
 
-  // saved: true=저장된 강의(이름·페이지·✕ 삭제) / false=최근 연 파일(파일명·시각, 8개 자동 회전)
+  // side: 'local'(이 PC) | 'drive'(구글 드라이브 저장)
   // 드라이브에서 온 이름·label은 전부 textContent로만 넣는다(XSS 방지).
-  _paint(section, list, rows, saved) {
-    if (!section) return;
-    // 비어 있어도 섹션을 띄운다 — 안 그러면 처음 방문한 사용자가 기능 존재 자체를 모른다.
-    section.classList.remove('hidden');
+  _paint(list, rows, side) {
     list.textContent = '';
 
-    if (Drive.loading) {
+    if (side === 'drive' && Drive.loading) {
       const ld = document.createElement('div');
       ld.className = 'drive-loading';
       ld.textContent = '☁ 드라이브 불러오는 중…';
       list.appendChild(ld);
       if (!rows.length) return;   // 불러오는 중엔 "없습니다" 문구를 띄우지 않는다
-    } else if (saved && Drive.error) {
+    } else if (side === 'drive' && Drive.error) {
       // 목록 실패는 토스트가 사라진 뒤에도 남긴다 — 연결된 채 "강의 없음"만 보이면 드라이브가 비었다고 오해한다
       const er = document.createElement('div');
       er.className = 'drive-error';
@@ -3449,11 +3578,11 @@ const RecentFiles = {
     if (!rows.length) {
       const empty = document.createElement('div');
       empty.className = 'recent-empty';
-      // 학교 PC(Client ID 있음·미연결)에서 필요한 행동은 저장이 아니라 연결이다
-      empty.textContent = !saved ? '최근에 연 파일이 없습니다'
-        : DRIVE_ON && !Drive.isConnected()
-          ? '저장된 강의가 없습니다\nGoogle 드라이브를 연결하면 저장한 강의가 여기에 표시됩니다'
-          : '저장된 강의가 없습니다\n강의 중 📌 위치 저장을 누르면 여기에 저장됩니다';
+      empty.textContent = side === 'local'
+        ? '이 PC에 저장된 강의가 없습니다\n파일을 열고 📌 또는 ☁로 저장하면 여기에 표시됩니다'
+        : Drive.isConnected()
+          ? '드라이브에 저장된 강의가 없습니다\n☁ 드라이브 저장을 누르면 여기에 표시됩니다'
+          : 'Google 드라이브를 연결하면 저장한 강의가 표시됩니다';
       list.appendChild(empty);
       return;
     }
@@ -3461,35 +3590,28 @@ const RecentFiles = {
     for (const row of rows) {
       const el = document.createElement('div');
       el.className = 'recent-item';
-      el.title = row.names.join(', ') + (row.drive ? ' · Google 드라이브' : '');   // 어떤 파일인지 전체 이름
-
-      if (row.drive) {
-        const badge = document.createElement('span');
-        badge.className = 'drive-badge';
-        badge.textContent = '☁';
-        el.appendChild(badge);
-      }
+      el.title = row.names.join(', ');   // 어떤 파일인지 전체 이름
 
       const name = document.createElement('span');
       name.className = 'recent-name';
-      name.textContent = saved ? row.label
-        : row.names[0] + (row.names.length > 1 ? ` 외 ${row.names.length - 1}개` : '');
+      name.textContent = this.displayName(row);
 
       const time = document.createElement('span');
       time.className = 'recent-time';
-      time.textContent = saved ? `${row.page || 1}페이지 · ${recentTimeLabel(row.time)}`
-                               : recentTimeLabel(row.time);
+      // 위치를 저장한 항목만 페이지를 보여 준다(없으면 열 때 1페이지)
+      time.textContent = row.page ? `${row.page}페이지 · ${recentTimeLabel(row.time)}` : recentTimeLabel(row.time);
 
-      el.append(name, time);
-      if (saved) {   // 자동 기록분은 8개 상한으로 스스로 회전하므로 삭제 버튼을 두지 않는다
-        const del = document.createElement('button');
-        del.className = 'recent-del';
-        del.textContent = '✕';
-        del.title = '목록에서 제거';
-        del.setAttribute('aria-label', '목록에서 제거');
-        del.addEventListener('click', e => { e.stopPropagation(); this.removeRow(row); });
-        el.appendChild(del);
-      }
+      const del = document.createElement('button');
+      del.className = 'recent-del';
+      del.textContent = '✕';
+      del.title = side === 'local' ? '이 PC 목록에서 제거' : '드라이브 목록에서 제거';
+      del.setAttribute('aria-label', del.title);
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        if (side === 'local') this.remove(row.id); else this.removeDriveRow(row);
+      });
+
+      el.append(name, time, del);
       el.addEventListener('click', () => this.open(row));   // page 없으면 1페이지
       list.appendChild(el);
     }
@@ -3898,8 +4020,8 @@ const Drive = {
     loadingOverlay.classList.add('visible');
   },
 
-  // ☁ 드라이브 저장 — 이 강의 파일을 드라이브로 복사한다. 위치 변경 없음.
-  //   이 PC 북마크 또는 드라이브 북마크가 있으면(최신 쪽) saved:true, 없으면 saved:false(최근 연 파일)
+  // ☁ 드라이브 저장 — 강의 파일을 드라이브로 복사하고 **현재 페이지까지 저장**한다(이름은 묻지 않는다).
+  //   label = 기존 북마크(로컬·드라이브 중 최신) → 없으면 첫 파일명. 핸들이 있으면 이 PC 북마크도 같은 값으로.
   //   같은 이름·다른 크기 파일이 있으면 먼저 묻는다(아무것도 올리기 전에):
   //     덮어쓰기 → 같은 fileId 내용 교체 / 다른 이름으로 저장 → 새 파일 + 덱 이름 변경(별도 강의) / 취소
   async saveDeck() {
@@ -3949,27 +4071,21 @@ const Drive = {
         if (this.sameDeck(docs)) updateDownloadForPage(state.currentPage);
       }
       const names = docs.map(d => d.name), id = deckId(names);
-      const bmLocal = (await RecentFiles._local()).find(e => e.id === id && e.saved) || null;
-      let saved = false;
-      await this.update(list => {
-        const old = list.find(e => e.id === id);
-        const bm = [bmLocal, old && old.saved ? old : null].filter(Boolean).sort((a, b) => b.time - a.time)[0];
-        saved = !!bm;
-        if (bm) this._upsert(list, { id, names, fileIds, label: bm.label, page: bm.page, time: bm.time, saved: true });
-        else this._putRecent(list, { id, names, fileIds, time: Date.now(), saved: false });
-      });
+      const label = await RecentFiles.autoLabel();   // 묻지 않는다 — 기존 북마크 label 또는 파일명
+      const page  = state.currentPage;
+      await this.update(list => this._upsert(list,
+        { id, names, fileIds, label, page, time: Date.now(), saved: true }));
       loadingOverlay.classList.remove('visible');
       if (this.sameDeck(docs)) {
         state.driveFileIds = fileIds;   // 이후 📌가 드라이브에도 저장
         state.driveConflict = false;
-        // 보류 위치는 이미 이 PC 북마크에 들어 있다 — 북마크(또는 더 최신인 드라이브 값)를 방금 맞췄으므로 해제.
-        // 이름을 바꿨으면 이전 강의의 보류이므로 해제.
-        if ((bmLocal && state.handles) || newNames) this.pendingSave = null;
-        if (newNames && HAS_FSA && state.handles) RecentFiles.record(names, state.handles);
+        this.pendingSave = null;        // 방금 현재 위치를 드라이브에 기록했다
+        // 이 PC 북마크도 같은 label·page로 — 양쪽 목록이 어긋나지 않게
+        if (HAS_FSA && state.handles) await RecentFiles.saveLocal(label, page);
       }
       showToast(newNames
-        ? `${renamed.map(n => `'${n}'`).join(', ')}(으)로 드라이브에 저장했습니다 — 기존 파일은 그대로 있습니다`
-        : `드라이브에 저장했습니다 — 다른 PC의 '${saved ? '저장된 강의' : '최근 연 파일'}'에 표시됩니다`, false, 5000);
+        ? `${renamed.map(n => `'${n}'`).join(', ')}(으)로 드라이브에 저장했습니다 — ${label} · ${page}페이지 (기존 파일은 그대로)`
+        : `드라이브에 저장했습니다 — ${label} · ${page}페이지`, false, 5000);
     } catch (e) {
       loadingOverlay.classList.remove('visible');
       this.fail(e, '드라이브 저장에 실패했습니다.');
@@ -3992,45 +4108,16 @@ const Drive = {
     return plan;
   },
 
-  // 충돌 확인 창 — 'overwrite' | 'rename' | 'cancel'. Esc·배경 클릭 = 취소.
-  // 열려 있는 동안 앱 단축키(Esc = 슬라이드 주석 초기화, 화살표 = 페이지 이동 등)가 돌지 않게 capture 단계에서 막는다.
+  // 충돌 확인 창 — 'overwrite' | 'rename' | 'cancel'. 기본 포커스는 기존 파일을 지키는 쪽.
   askConflict(items) {
-    const modal = $('drive-conflict-modal'), list = $('drive-conflict-list');
+    const list = $('drive-conflict-list');
     list.textContent = '';
     for (const c of items) {
       const li = document.createElement('li');
       li.textContent = `${c.name} — 드라이브: ${fmtMonthDay(c.modified)} 수정 · ${fmtSize(c.size)} / 이 PC: ${fmtSize(c.local)}`;
       list.appendChild(li);
     }
-    const back = document.activeElement;
-    modal.classList.add('visible');
-    const buttons = [...modal.querySelectorAll('button[data-choice]')];
-    modal.querySelector('[data-choice="rename"]').focus();   // 기본 = 기존 파일을 지키는 쪽
-    return new Promise(resolve => {
-      const onClick = e => {
-        const b = e.target.closest('button[data-choice]');
-        if (b) done(b.dataset.choice);
-        else if (e.target === modal) done('cancel');
-      };
-      const onKey = e => {
-        e.stopPropagation();   // KeyboardHandler 등 document 리스너로 가지 않게(버튼의 Enter/Space 기본 동작은 유지)
-        if (e.key === 'Escape') { e.preventDefault(); done('cancel'); }
-        else if (e.key === 'Tab') {   // 포커스를 창 안에 가둔다
-          e.preventDefault();
-          const k = buttons.indexOf(document.activeElement);
-          buttons[(k + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length].focus();
-        }
-      };
-      const done = choice => {
-        modal.classList.remove('visible');
-        modal.removeEventListener('click', onClick);
-        document.removeEventListener('keydown', onKey, true);
-        if (back && back.focus) back.focus();
-        resolve(choice);
-      };
-      modal.addEventListener('click', onClick);
-      document.addEventListener('keydown', onKey, true);
-    });
+    return modalChoice($('drive-conflict-modal'), '[data-choice="rename"]');
   },
 
   // "다른 이름으로 저장"의 새 이름들(충돌 파일만 바꾼다). 1개면 묻고, 여럿이면 자동 번호. 취소면 null.
@@ -4400,7 +4487,7 @@ document.addEventListener('paste', e => {
   // 앱이 로드된 상태에서만, input에 포커스된 상태는 제외
   if (!state.pdf || !appEl.classList.contains('visible')) return;
   if (e.target.tagName === 'INPUT') return;
-  if (document.querySelector('#drive-conflict-modal.visible, #ppt-modal.visible')) return;   // 모달 뒤 슬라이드에 붙지 않게
+  if (document.querySelector('#drive-conflict-modal.visible, #ppt-modal.visible, #close-deck-modal.visible')) return;   // 모달 뒤 슬라이드에 붙지 않게
 
   const items = e.clipboardData?.items;
   if (!items) return;
