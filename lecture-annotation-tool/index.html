@@ -1256,7 +1256,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-18.2';
+const APP_VERSION = '2026-09-18.3';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2714,6 +2714,22 @@ async function askClose() {
   const local = HAS_FSA && !!state.handles;
   const drive = DRIVE_ON && !!state.driveFileIds;
   const annotated = Object.values(state.strokes).filter(a => a && a.length).length;
+
+  // 물어볼 것이 없으면 묻지 않는다(드라이브 보류가 있으면 언제나 묻는다)
+  if (!Drive.pendingSave) {
+    // ① 저장할 곳도 없고 주석도 없다 → [저장 없이 닫기][취소]뿐인 무의미한 질문을 띄우지 않는다
+    if (!local && !drive && !annotated) { closeDeck(); return; }
+    // ② 이미 저장된 위치가 현재 페이지와 같다 → 같은 저장을 조용히 하고 닫는다(실패해도 닫는다).
+    //    저장 내용은 모달의 "위치 저장하고 닫기"와 동일 — 이름을 묻지 않고, 업로드·내용 교체도 없다.
+    if ((local || drive) && await RecentFiles.samePageSaved()) {
+      const note = annotated ? ` (주석 ${annotated}개 페이지는 저장되지 않습니다)` : '';
+      await RecentFiles.saveOnClose(local, drive,
+        `위치를 저장하고 닫았습니다 — ${await RecentFiles.autoLabel()} · ${state.currentPage}페이지${note}`);
+      closeDeck(true);   // 방금 띄운 안내(성공·실패)를 지우지 않는다
+      return;
+    }
+  }
+
   const label = await RecentFiles.savedLabel();
   const lines = [`현재 ${state.currentPage} / ${state.totalPages} 페이지${label ? ` (${label})` : ''}`];
   if (annotated) lines.push(`주석이 있는 페이지 ${annotated}개는 저장되지 않고 사라집니다.`);
@@ -3307,6 +3323,14 @@ const RecentFiles = {
     } catch (e) { console.warn('recent: record failed', e); }
   },
 
+  // 이미 저장된 위치가 현재 페이지와 같은가(이 PC·드라이브 중 하나라도) — 닫기에서 묻지 않기 판정.
+  // 라벨은 보지 않는다(이름이 달라도 위치가 같으면 더 물어볼 것이 없다).
+  async samePageSaved() {
+    const id = deckId(state.docs.map(d => d.name));
+    return [...(await this._local()), ...Drive.entries()]
+      .some(e => e.id === id && e.saved && e.page === state.currentPage);
+  },
+
   // 이 덱의 기존 북마크 label(이 PC·드라이브 중 time 최신). 없으면 ''
   async savedLabel() {
     const bm = await this._bookmark();
@@ -3320,13 +3344,15 @@ const RecentFiles = {
   },
 
   // 닫기 모달의 "위치 저장하고 닫기" — 이름을 묻지 않고, 업로드·내용 교체도 하지 않는다.
-  async saveOnClose(local, drive) {
+  //   okMsg: 성공 토스트 문구를 바꾼다(묻지 않고 닫는 경로). 실패 안내 문구는 그대로 둔다.
+  async saveOnClose(local, drive, okMsg = null) {
     const label = await this.autoLabel();
     const page  = state.currentPage;
     const docs  = state.docs.slice();
     if (local && !(await this.saveLocal(label, page))) { showToast('저장에 실패했습니다.', true, 5000); return; }
     if (!drive) {
-      showToast(`저장했습니다 — ${label} · ${page}페이지${state.driveConflict ? ' (드라이브에는 저장하지 않음)' : ''}`, false, 5000);
+      showToast((okMsg || `저장했습니다 — ${label} · ${page}페이지`)
+                + (state.driveConflict ? ' (드라이브에는 저장하지 않음)' : ''), false, 5000);
       return;
     }
     if (!Drive.ready()) {   // 닫는 중에는 로그인 창을 띄우지 않는다
@@ -3334,7 +3360,7 @@ const RecentFiles = {
       else showToast('드라이브 연결이 만료되어 위치를 저장하지 못했습니다. 다시 연결한 뒤 저장하세요.', true, 5000);
       return;
     }
-    await this._pushDrive(label, page, local, docs);
+    await this._pushDrive(label, page, local, docs, okMsg);
   },
 
   // 저장 이름 입력 — 기본값은 보류 중인 label → 기존 label(로컬·드라이브 병합) → 첫 파일명. 취소면 null
@@ -3426,7 +3452,7 @@ const RecentFiles = {
 
   // 드라이브에 위치 저장 — 파일은 올리지도 바꾸지도 않는다. 이 PC에서 연 덱은 연결된 드라이브 파일과
   // 크기가 모두 같을 때만 저장한다(다른 PC가 교체했거나 이 PC 파일이 다르면 페이지가 어긋나므로 건너뜀).
-  async _pushDrive(label, page, local, docs) {
+  async _pushDrive(label, page, local, docs, okMsg = null) {
     if (!Drive.sameDeck(docs)) return;   // 로그인하는 사이 덱이 바뀜 — 이전 덱의 위치는 버린다
     try {
       if (!state.driveOpened) {
@@ -3442,7 +3468,7 @@ const RecentFiles = {
       }
       await Drive.savePos(label, page, state.driveOpened ? null : state.driveFileIds);
       Drive.pendingSave = null;
-      showToast(`저장했습니다 (☁ 드라이브 포함) — ${label} · ${page}페이지`);
+      showToast(okMsg || `저장했습니다 (☁ 드라이브 포함) — ${label} · ${page}페이지`);
     } catch (e) {
       if (!e.quiet) {
         Drive.fail(e, '드라이브 저장에 실패했습니다.', local ? '이 PC에는 저장했지만, ' : '');
