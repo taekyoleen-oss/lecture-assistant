@@ -1256,7 +1256,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-22.2';
+const APP_VERSION = '2026-09-22.3';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -1510,6 +1510,7 @@ const PDFRenderer = {
       } else if (state.docs.length > 1) {
         showToast(`PDF ${state.docs.length}개 연결 — 총 ${state.totalPages}페이지`);
       }
+      if (!append) RecentFiles.fillTotal();   // 전체 쪽수가 빠진 저장 항목을 연 김에 채운다(기다리지 않음)
       return true;                      // 최근 파일 기록은 성공했을 때만
     } catch (e) {
       loadingOverlay.classList.remove('visible');
@@ -3330,6 +3331,26 @@ const RecentFiles = {
     } catch (e) { console.warn('recent: record failed', e); }
   },
 
+  // 연 덱의 저장 항목(이 PC·드라이브)에 전체 쪽수(total)가 없거나 다르면 채운다 — "13/24페이지" 표시용.
+  //   total 기록 이전에 저장된 항목, 또는 이전 버전 앱(다른 탭·다른 PC)이 total 없이 다시 쓴 항목을 복구한다.
+  //   time은 건드리지 않는다(목록의 날짜는 "저장한 때"). 드라이브는 토큰이 유효할 때만(로그인 창 없음).
+  async fillTotal() {
+    const total = state.totalPages, id = deckId(state.docs.map(d => d.name));
+    if (!total) return;
+    const stale = e => e.id === id && e.saved && e.page && e.total !== total;
+    try {
+      const e = (await RecentDB.all()).find(stale);
+      if (e) { await RecentDB.put({ ...e, total }); this.render(); }
+    } catch (err) { console.warn('recent: fillTotal failed', err); }
+    if (DRIVE_ON && Drive.ready() && Drive.entries().some(stale)) {
+      Drive.update(list => {
+        const x = list.find(stale);
+        if (!x) return false;
+        x.total = total;
+      }).catch(err => console.warn('drive: fillTotal failed', err));
+    }
+  },
+
   // 이미 저장된 위치가 현재 페이지와 같은가(이 PC·드라이브 중 하나라도) — 닫기에서 묻지 않기 판정.
   // 라벨은 보지 않는다(이름이 달라도 위치가 같으면 더 물어볼 것이 없다).
   async samePageSaved() {
@@ -4097,12 +4118,14 @@ const Drive = {
   // (다른 PC가 새 버전을 올렸을 수 있다).
   savePos(label, page, fileIds) {
     const names = state.docs.map(d => d.name), id = deckId(names);
+    // 요청 시점의 값으로 고정 — 아래 함수는 library.json을 읽어 온 뒤(네트워크 왕복 후)에 실행된다
+    const total = state.totalPages, liveIds = fileIds || state.driveFileIds;
     return this.update(list => {
       const old = list.find(e => e.id === id);
       const keep = !fileIds && old;
       this._upsert(list, { id, names: keep ? old.names : names,
-                           fileIds: keep ? old.fileIds : (fileIds || state.driveFileIds),
-                           label, page, total: state.totalPages, time: Date.now(), saved: true });
+                           fileIds: keep ? old.fileIds : liveIds,
+                           label, page, total: total || (old && old.total), time: Date.now(), saved: true });
     });
   },
 
