@@ -1256,7 +1256,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-22.1';
+const APP_VERSION = '2026-09-22.2';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -3253,7 +3253,11 @@ function recentTimeLabel(t) {
   const days  = Math.round((dayOf(new Date()) - dayOf(d)) / 86400000);
   if (days === 0) return `오늘 ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
   if (days === 1) return '어제';
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  // '/'를 쓰지 않는다 — 옆의 페이지 표기(13/24페이지)와 헷갈리지 않게
+  const now = new Date();
+  if (d.getFullYear() !== now.getFullYear()) return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}일`;
+  if (d.getMonth() !== now.getMonth()) return `${d.getMonth() + 1}.${d.getDate()}일`;
+  return `${d.getDate()}일`;
 }
 
 // "13/24페이지" — 전체 쪽수를 모르면(total 기록 이전에 저장된 항목) "13페이지"
