@@ -1256,7 +1256,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-18.3';
+const APP_VERSION = '2026-09-22.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2724,7 +2724,7 @@ async function askClose() {
     if ((local || drive) && await RecentFiles.samePageSaved()) {
       const note = annotated ? ` (주석 ${annotated}개 페이지는 저장되지 않습니다)` : '';
       await RecentFiles.saveOnClose(local, drive,
-        `위치를 저장하고 닫았습니다 — ${await RecentFiles.autoLabel()} · ${state.currentPage}페이지${note}`);
+        `위치를 저장하고 닫았습니다 — ${await RecentFiles.autoLabel()} · ${pageText(state.currentPage, state.totalPages)}${note}`);
       closeDeck(true);   // 방금 띄운 안내(성공·실패)를 지우지 않는다
       return;
     }
@@ -3256,6 +3256,9 @@ function recentTimeLabel(t) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+// "13/24페이지" — 전체 쪽수를 모르면(total 기록 이전에 저장된 항목) "13페이지"
+const pageText = (page, total) => Number.isInteger(total) && total > 0 ? `${page}/${total}페이지` : `${page}페이지`;
+
 const RecentFiles = {
   init() {
     const sel = $('list-sort');
@@ -3276,12 +3279,12 @@ const RecentFiles = {
   // 이 PC(IndexedDB) 항목 → 행. saved 필드가 없는 예전 자동 기록분은 제외(마이그레이션 불필요)
   async _localRows() {
     return (await this._local()).filter(e => typeof e.saved === 'boolean')
-      .map(e => ({ id: e.id, names: e.names, label: e.label, page: e.page, time: e.time, local: e }));
+      .map(e => ({ id: e.id, names: e.names, label: e.label, page: e.page, total: e.total, time: e.time, local: e }));
   },
 
   // 드라이브(library.json) 항목 → 행. 연결 중일 때만 값이 있다
   _driveRows() {
-    return Drive.entries().map(e => ({ id: e.id, names: e.names, label: e.label, page: e.page, time: e.time, drive: e }));
+    return Drive.entries().map(e => ({ id: e.id, names: e.names, label: e.label, page: e.page, total: e.total, time: e.time, drive: e }));
   },
 
   // 목록에 보이는 이름 — label이 있으면 label, 없으면 첫 파일명(+ 외 N개)
@@ -3351,7 +3354,7 @@ const RecentFiles = {
     const docs  = state.docs.slice();
     if (local && !(await this.saveLocal(label, page))) { showToast('저장에 실패했습니다.', true, 5000); return; }
     if (!drive) {
-      showToast((okMsg || `저장했습니다 — ${label} · ${page}페이지`)
+      showToast((okMsg || `저장했습니다 — ${label} · ${pageText(page, state.totalPages)}`)
                 + (state.driveConflict ? ' (드라이브에는 저장하지 않음)' : ''), false, 5000);
       return;
     }
@@ -3380,7 +3383,7 @@ const RecentFiles = {
     const names = state.docs.map(d => d.name);
     try {
       await RecentDB.put({ id: deckId(names), names, handles: state.handles, label, page,
-                           time: Date.now(), saved: true });
+                           total: state.totalPages, time: Date.now(), saved: true });
       this.render();
       return true;
     } catch (e) {
@@ -3430,7 +3433,7 @@ const RecentFiles = {
       return;
     }
     if (!mode) {
-      showToast(`저장했습니다 — ${label} · ${page}페이지${state.driveConflict ? ' (드라이브에는 저장하지 않음)' : ''}`);
+      showToast(`저장했습니다 — ${label} · ${pageText(page, state.totalPages)}${state.driveConflict ? ' (드라이브에는 저장하지 않음)' : ''}`);
       return;
     }
     if (mode === 'defer') {
@@ -3468,7 +3471,7 @@ const RecentFiles = {
       }
       await Drive.savePos(label, page, state.driveOpened ? null : state.driveFileIds);
       Drive.pendingSave = null;
-      showToast(okMsg || `저장했습니다 (☁ 드라이브 포함) — ${label} · ${page}페이지`);
+      showToast(okMsg || `저장했습니다 (☁ 드라이브 포함) — ${label} · ${pageText(page, state.totalPages)}`);
     } catch (e) {
       if (!e.quiet) {
         Drive.fail(e, '드라이브 저장에 실패했습니다.', local ? '이 PC에는 저장했지만, ' : '');
@@ -3651,7 +3654,7 @@ const RecentFiles = {
       const time = document.createElement('span');
       time.className = 'recent-time';
       // 위치를 저장한 항목만 페이지를 보여 준다(없으면 열 때 1페이지)
-      time.textContent = row.page ? `${row.page}페이지 · ${recentTimeLabel(row.time)}` : recentTimeLabel(row.time);
+      time.textContent = row.page ? `${pageText(row.page, row.total)} · ${recentTimeLabel(row.time)}` : recentTimeLabel(row.time);
 
       const del = document.createElement('button');
       del.className = 'recent-del';
@@ -3786,7 +3789,7 @@ const Drive = {
   // 보류된 드라이브 위치가 있으면 버려도 되는지 묻는다(✕ 닫기·➕ PDF 추가 공통). 없으면 true
   pendingOk(doing, ask) {
     const p = this.pendingSave;
-    return !p || confirm(`드라이브에 아직 반영하지 않은 위치(${p.page}페이지)가 있습니다. ${doing} 반영되지 않습니다. ${ask}`);
+    return !p || confirm(`드라이브에 아직 반영하지 않은 위치(${pageText(p.page, state.totalPages)})가 있습니다. ${doing} 반영되지 않습니다. ${ask}`);
   },
 
   // 한 번에 하나만 — 진행 중이면 무시(더블클릭으로 덱이 두 번 열리거나 중복 업로드되는 것을 막는다)
@@ -4095,7 +4098,7 @@ const Drive = {
       const keep = !fileIds && old;
       this._upsert(list, { id, names: keep ? old.names : names,
                            fileIds: keep ? old.fileIds : (fileIds || state.driveFileIds),
-                           label, page, time: Date.now(), saved: true });
+                           label, page, total: state.totalPages, time: Date.now(), saved: true });
     });
   },
 
@@ -4158,8 +4161,9 @@ const Drive = {
       const names = docs.map(d => d.name), id = deckId(names);
       const label = await RecentFiles.autoLabel();   // 묻지 않는다 — 기존 북마크 label 또는 파일명
       const page  = state.currentPage;
+      const total = docs.reduce((s, d) => s + d.numPages, 0);   // 올린 덱 기준(업로드 중 덱이 바뀌어도 맞게)
       await this.update(list => this._upsert(list,
-        { id, names, fileIds, label, page, time: Date.now(), saved: true }));
+        { id, names, fileIds, label, page, total, time: Date.now(), saved: true }));
       loadingOverlay.classList.remove('visible');
       if (this.sameDeck(docs)) {
         state.driveFileIds = fileIds;   // 이후 📌가 드라이브에도 저장
@@ -4169,8 +4173,8 @@ const Drive = {
         if (HAS_FSA && state.handles) await RecentFiles.saveLocal(label, page);
       }
       showToast(newNames
-        ? `${renamed.map(n => `'${n}'`).join(', ')}(으)로 드라이브에 저장했습니다 — ${label} · ${page}페이지 (기존 파일은 그대로)`
-        : `드라이브에 저장했습니다 — ${label} · ${page}페이지`, false, 5000);
+        ? `${renamed.map(n => `'${n}'`).join(', ')}(으)로 드라이브에 저장했습니다 — ${label} · ${pageText(page, total)} (기존 파일은 그대로)`
+        : `드라이브에 저장했습니다 — ${label} · ${pageText(page, total)}`, false, 5000);
     } catch (e) {
       loadingOverlay.classList.remove('visible');
       this.fail(e, '드라이브 저장에 실패했습니다.');
