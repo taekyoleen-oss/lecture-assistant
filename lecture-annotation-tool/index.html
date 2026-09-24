@@ -204,9 +204,9 @@
 
     #file-input { display: none; }
 
-    /* ── 저장된 강의 / 최근 연 파일 (FSA 지원 브라우저 또는 드라이브 연결 시 표시) ── */
-    /* 드라이브 바 + 2단 목록을 세로로 묶는다. 드라이브 바가 없으면(Client ID 미설정)
-       #idle-lists 하나만 남아 예전 배치와 동일하다. */
+    /* ── 저장된 강의 (FSA 지원 브라우저 또는 드라이브 연결 시 표시) ── */
+    /* 드라이브 바 + 통합 목록을 세로로 묶는다. 스크롤 컨테이너는 계속 #idle-screen 하나뿐 —
+       여기에 overflow를 주지 않는다. */
     #idle-lower {
       display: flex;
       flex-direction: column;
@@ -214,33 +214,17 @@
       gap: 8px;
       flex: 0 0 auto;
     }
-    /* 2단 가로 배치. 스크롤 컨테이너는 계속 #idle-screen 하나뿐 — 여기에 overflow를 주지 않는다 */
-    #idle-lists {
-      display: flex;
-      align-items: flex-start;
-      gap: 20px;
-      flex: 0 0 auto;   /* 푸터 회피는 #idle-screen의 padding-bottom이 담당 */
-    }
-    /* 800px(420+20+360)가 들어갈 여유가 없으면 세로로 스택 */
-    @media (max-width: 840px) {
-      #idle-lists { flex-direction: column; align-items: center; }
-    }
 
+    /* 이 PC 항목과 드라이브 항목을 한 줄로 합친 단일 목록(34번).
+       한 행에 이름 + 위치·날짜 + [💻][☁][⬆] + [✕]가 들어가므로 예전 2단(420+360)보다 좁게 잡는다. */
     #recent-section {
-      width: 420px;
+      width: 560px;
+      max-width: calc(100vw - 32px);
       flex: 0 0 auto;
     }
     #recent-section.hidden { display: none; }
 
-    /* 우측 "구글 드라이브 저장" — 좌측과 대등한 주 목록(행 높이·글자 크기 동일).
-       폭만 좁다: 강의 이름이 잘리지 않을 만큼은 확보해야 한다(230px에서는 이름 칸이 40px뿐이었다). */
-    #opened-section {
-      width: 360px;
-      flex: 0 0 auto;
-    }
-    #opened-section.hidden { display: none; }
-
-    /* 제목 줄 — 좌측엔 정렬 컨트롤이 들어간다. 두 목록이 같은 높이에서 시작하도록 높이를 고정한다
+    /* 제목 줄 — 정렬 컨트롤이 들어간다. 높이를 고정한다
        (높이를 바꾸면 --idle-reserve도 같이 고칠 것). */
     .recent-title {
       display: flex; align-items: center; justify-content: space-between;
@@ -256,7 +240,7 @@
       padding: 0 2px;
       cursor: pointer;
     }
-    #recent-list, #opened-list {
+    #recent-list {
       border: 1px solid var(--border);
       border-radius: 10px;
       background: var(--surface);
@@ -271,11 +255,8 @@
       scrollbar-gutter: stable;   /* 5개 경계에서 스크롤바가 생겨도 행 폭이 흔들리지 않게 */
     }
     #recent-list { max-height: max(72px, min(177px, calc(100vh - var(--idle-reserve)))); }  /* 행 35(실측) × 5 + 테두리 2, 하한 2행 */
-    #opened-list { max-height: max(72px, min(177px, calc(100vh - var(--idle-reserve)))); }  /* 좌측과 동일: 행 35 × 5 + 테두리 2 */
-    #recent-list::-webkit-scrollbar, #opened-list::-webkit-scrollbar { width: 8px; }
-    #recent-list::-webkit-scrollbar-thumb, #opened-list::-webkit-scrollbar-thumb {
-      background: var(--border2); border-radius: 4px;
-    }
+    #recent-list::-webkit-scrollbar { width: 8px; }
+    #recent-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
     .recent-item {
       display: flex; align-items: center; gap: 10px;
       padding: 6px 10px 6px 12px;
@@ -309,9 +290,10 @@
       cursor: pointer;
     }
     .recent-del:hover { background: var(--tool-hover); color: var(--text); opacity: 1; }
-    /* 드라이브 행의 ⬆ 업데이트 — ✕와 같은 22px 상자(행 높이·목록 5행 예약값 불변).
-       활성(이 PC 파일이 더 최신)일 때만 파란 테두리로 강조하고, 판정 불가는 흐린 보통 상태. */
-    .recent-up {
+    /* 행의 아이콘 버튼 — 💻 이 PC로 열기 / ☁ 드라이브에서 열기·올리기 / ⬆ 업데이트.
+       ✕와 같은 22px 상자라 행 높이(35px)·목록 5행 예약값이 그대로다.
+       .has = 있음(진하게) · .on = 지금 누를 만한 동작(파란 테두리로 강조) · disabled = 없음(흐리게). */
+    .recent-act {
       flex: 0 0 auto;
       width: 22px; height: 22px;
       border: 1px solid transparent; border-radius: 6px;
@@ -321,12 +303,18 @@
       opacity: 0.55;
       cursor: pointer;
     }
-    .recent-up:hover { background: var(--tool-hover); color: var(--text); opacity: 1; }
-    .recent-up.on {
+    .recent-act:hover:not(:disabled) { background: var(--tool-hover); color: var(--text); opacity: 1; }
+    .recent-act.has { color: var(--text-muted); opacity: 1; }
+    .recent-act.on {
       color: #2563eb; border-color: #3B82F6; background: rgba(59,130,246,0.08); opacity: 1;
     }
-    [data-theme="dark"] .recent-up.on { color: #60a5fa; }
-    .recent-up.on:hover { background: rgba(59,130,246,0.20); }
+    [data-theme="dark"] .recent-act.on { color: #60a5fa; }
+    .recent-act.on:hover { background: rgba(59,130,246,0.20); }
+    .recent-act:disabled { opacity: 0.22; cursor: default; }
+    /* ☁ 올리기 강조는 행마다 반복되므로 채움 없이 테두리만 — 파란 덩어리로 보이지 않게,
+       그리고 가끔만 나타나는 ⬆의 채움 강조와 구분되게 한다(36번 O-2). */
+    .recent-act[data-act="cloud"].on { background: transparent; border-color: rgba(59,130,246,0.5); }
+    .recent-act[data-act="cloud"].on:hover { background: rgba(59,130,246,0.12); border-color: #3B82F6; }
 
     /* ── Google 드라이브 (GOOGLE_CLIENT_ID 설정 시 body.drive-on) ── */
     #drive-bar { display: none; }
@@ -708,7 +696,7 @@
       outline: none;
     }
 
-    #save-png-btn, #download-pdf-btn, #add-pdf-btn, #close-pdf-btn, #save-pos-btn, #drive-save-btn {
+    #save-png-btn, #download-pdf-btn, #add-pdf-btn, #close-pdf-btn, #save-pos-btn, #save-close-btn {
       background: transparent;
       border: 1px solid var(--border2);
       border-radius: 6px;
@@ -730,18 +718,16 @@
     #save-pos-btn:hover   { background: rgba(245,158,11,0.10); color: #b45309; border-color: #f59e0b; }
     [data-theme="dark"] #save-pos-btn:hover { color: #fbbf24; }
     #bottom-bar > * { white-space: nowrap; }   /* 좁은 화면에서 라벨이 두 줄로 꺾이지 않게 */
-    /* 드라이브 버튼이 늘어난 만큼 1024px(XGA 프로젝터)에서도 한 줄에 들어가게 간격·여백 축소 */
+    /* 버튼이 늘어난 만큼 1024px(XGA 프로젝터)에서도 한 줄에 들어가게 간격·여백 축소.
+       💾 저장 후 닫기는 Client ID와 무관하게 늘 있으므로 drive-on 조건 없이 적용한다. */
     @media (max-width: 1140px) {
-      body.drive-on #bottom-bar { gap: 8px; }
-      body.drive-on #close-pdf-btn { margin-left: 8px; }
-      body.drive-on .nav-btn, body.drive-on #present-btn, body.drive-on #add-pdf-btn,
-      body.drive-on #save-png-btn, body.drive-on #download-pdf-btn, body.drive-on #save-pos-btn,
-      body.drive-on #drive-save-btn, body.drive-on #close-pdf-btn { padding: 4px 8px; }
+      #bottom-bar { gap: 8px; }
+      #close-pdf-btn { margin-left: 8px; }
+      .nav-btn, #present-btn, #add-pdf-btn, #save-png-btn,
+      #download-pdf-btn, #save-pos-btn, #save-close-btn, #close-pdf-btn { padding: 4px 8px; }
     }
-    #drive-save-btn { display: none; }                     /* Client ID 미설정이면 숨김 */
-    body.drive-on #drive-save-btn { display: inline-block; }
-    #drive-save-btn:hover { background: rgba(59,130,246,0.10); color: #2563eb; border-color: #3B82F6; }
-    [data-theme="dark"] #drive-save-btn:hover { color: #60a5fa; }
+    #save-close-btn:hover { background: rgba(245,158,11,0.10); color: #b45309; border-color: #f59e0b; }
+    [data-theme="dark"] #save-close-btn:hover { color: #fbbf24; }
     #close-pdf-btn        { margin-left: 16px; }
     #close-pdf-btn:hover  { background: rgba(239,68,68,0.10); color: #ef4444; border-color: #ef4444; }
 
@@ -1004,22 +990,17 @@
             target="_blank" rel="noopener noreferrer" title="이 브라우저의 Google 계정에서 로그아웃(새 창)">Google 로그아웃↗</a></span>
     </div>
 
-    <!-- 좌: 저장된 강의(북마크) / 우: 최근 연 파일 — 로컬(FSA)과 드라이브 항목을 병합해 표시.
-         FSA 미지원 + 드라이브 미연결이면 계속 hidden -->
-    <div id="idle-lists">
-      <div id="recent-section" class="hidden">
-        <div class="recent-title">저장된 강의 (이 PC)
-          <select id="list-sort" title="두 목록 모두에 적용">
-            <option value="date">날짜순</option>
-            <option value="name">이름순</option>
-          </select>
-        </div>
-        <div id="recent-list"></div>
+    <!-- 저장된 강의 — 이 PC(FSA) 항목과 드라이브 항목을 같은 id(파일명 집합)로 합쳐 한 줄씩 보여준다.
+         행마다 💻 이 PC / ☁ 드라이브(없으면 올리기) / ⬆ 업데이트 버튼.
+         FSA 미지원 + Client ID 미설정이면 계속 hidden -->
+    <div id="recent-section" class="hidden">
+      <div class="recent-title">저장된 강의
+        <select id="list-sort" title="목록 정렬">
+          <option value="date">날짜순</option>
+          <option value="name">이름순</option>
+        </select>
       </div>
-      <div id="opened-section" class="hidden">
-        <div class="recent-title">구글 드라이브 저장</div>
-        <div id="opened-list"></div>
-      </div>
+      <div id="recent-list"></div>
     </div>
   </div>
 
@@ -1127,12 +1108,13 @@
     <button id="save-png-btn">💾 PNG 저장</button>
     <button id="download-pdf-btn" title="현재 페이지가 속한 PDF 다운로드">⬇️ PDF 저장</button>
     <button id="save-pos-btn" title="현재 파일과 페이지를 이름 붙여 저장 — 드라이브 연동 강의는 드라이브에도 저장">📌 위치 저장</button>
-    <button id="drive-save-btn" title="이 강의 파일을 Google 드라이브로 복사 — 다른 PC에서 열 수 있게(위치는 📌로 저장). PDF를 고쳤다면 다시 누르세요">☁ 드라이브 저장</button>
+    <button id="save-close-btn" title="이름을 묻지 않고 현재 페이지를 저장한 뒤 닫기 — 드라이브 연동 강의는 드라이브에도 저장">💾 저장 후 닫기</button>
     <button id="close-pdf-btn" title="현재 PDF를 닫고 시작 화면으로 (주석도 함께 삭제)">✕ 닫기</button>
   </div>
 </div>
 
-<!-- 드라이브 같은 이름 파일 충돌 — ☁ 드라이브 저장에서만 뜬다(📌는 드라이브 파일을 바꾸지 않는다) -->
+<!-- 드라이브 같은 이름 파일 충돌 — 목록의 ☁ 올리기에서만 뜬다
+     (📌·저장 후 닫기는 이미 연동된 같은 fileId만 갱신하므로 이름이 겹칠 일이 없다) -->
 <div id="drive-conflict-modal" role="dialog" aria-modal="true" aria-labelledby="drive-conflict-title">
   <div class="ppt-modal-box">
     <h2 id="drive-conflict-title">드라이브에 같은 이름의 파일이 있습니다</h2>
@@ -1256,7 +1238,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-22.3';
+const APP_VERSION = '2026-09-24.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2716,19 +2698,12 @@ async function askClose() {
   const drive = DRIVE_ON && !!state.driveFileIds;
   const annotated = Object.values(state.strokes).filter(a => a && a.length).length;
 
-  // 물어볼 것이 없으면 묻지 않는다(드라이브 보류가 있으면 언제나 묻는다)
-  if (!Drive.pendingSave) {
-    // ① 저장할 곳도 없고 주석도 없다 → [저장 없이 닫기][취소]뿐인 무의미한 질문을 띄우지 않는다
-    if (!local && !drive && !annotated) { closeDeck(); return; }
-    // ② 이미 저장된 위치가 현재 페이지와 같다 → 같은 저장을 조용히 하고 닫는다(실패해도 닫는다).
-    //    저장 내용은 모달의 "위치 저장하고 닫기"와 동일 — 이름을 묻지 않고, 업로드·내용 교체도 없다.
-    if ((local || drive) && await RecentFiles.samePageSaved()) {
-      const note = annotated ? ` (주석 ${annotated}개 페이지는 저장되지 않습니다)` : '';
-      await RecentFiles.saveOnClose(local, drive,
-        `위치를 저장하고 닫았습니다 — ${await RecentFiles.autoLabel()} · ${pageText(state.currentPage, state.totalPages)}${note}`);
-      closeDeck(true);   // 방금 띄운 안내(성공·실패)를 지우지 않는다
-      return;
-    }
+  // 바뀐 것이 없으면 묻지도, 저장하지도 않고 바로 닫는다(34번 — 쓰기 0).
+  //   "바뀐 것 없음" = 주석 없음 + 드라이브 보류 없음 + (저장할 곳이 없거나 이미 같은 위치가 저장돼 있음).
+  //   주석이 있거나 위치가 달라졌으면 아래 모달로 묻는다.
+  if (!Drive.pendingSave && !annotated && (!(local || drive) || await RecentFiles.samePageSaved())) {
+    closeDeck();
+    return;
   }
 
   const label = await RecentFiles.savedLabel();
@@ -2773,12 +2748,25 @@ function closeDeck(keepToast = false) {
   idleScreen.classList.remove('hidden');
   RecentFiles.render();   // 방금 닫은 파일이 목록 맨 위 → 1클릭 재열기
 }
-$('close-pdf-btn').addEventListener('click', () => askClose());
-$('save-pos-btn') .addEventListener('click', () => RecentFiles.save());
-// ☁ — 미연결·토큰 만료면 클릭 제스처 안에서 로그인 팝업을 먼저 띄우고, 연결되면 이어서 복사
-$('drive-save-btn').addEventListener('click', () => {
-  if (!Drive.busy) Drive.ensure(() => Drive.exclusive(() => Drive.saveDeck()));
-});
+// 💾 저장 후 닫기 — 이름을 묻지 않고 현재 위치를 저장(드라이브 연동이면 파일 자동 교체 포함)한 뒤 닫는다.
+//   저장에 실패해도 닫되 안내 토스트는 남긴다(closeDeck(true)).
+async function saveAndClose() {
+  if (!state.pdf) return;
+  if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
+  const local = HAS_FSA && !!state.handles;
+  const drive = DRIVE_ON && !!state.driveFileIds;
+  if (!local && !drive) {
+    showToast('브라우저 파일 선택 창으로 연 파일만 저장할 수 있습니다.', true);
+    return;
+  }
+  // exclusive — 연타로 저장이 두 번 돌지 않게(두 번째 클릭은 위 busy 검사에서 걸린다)
+  await Drive.exclusive(() => RecentFiles.saveOnClose(local, drive));
+  closeDeck(true);
+}
+
+$('close-pdf-btn') .addEventListener('click', () => askClose());
+$('save-pos-btn')  .addEventListener('click', () => RecentFiles.save());
+$('save-close-btn').addEventListener('click', () => saveAndClose());
 
 // ══════════════════════════════════════════════════════════
 // 전체보기 (Presentation Mode)
@@ -3205,16 +3193,16 @@ const PptHandler = {
 };
 
 // ══════════════════════════════════════════════════════════
-// RecentFiles — IDLE 화면의 두 목록을 한 스토어(entries)에서 관리한다.
-//   saved:true  = 저장된 강의(북마크). 📌 위치 저장으로만 생기고, 페이지까지 복원. 상한 없음
+// RecentFiles — IDLE 화면의 "저장된 강의" 단일 목록. 이 PC(IndexedDB)와 드라이브(library.json)
+//   항목을 같은 id(파일명 집합)로 합쳐 강의 하나당 한 행으로 보여 준다(34번).
+//   saved:true  = 저장된 강의(북마크). 📌·💾 위치 저장으로만 생기고, 페이지까지 복원. 상한 없음
 //                 (사용자가 이름 붙여 저장한 항목을 말없이 지우면 안 된다).
 //   saved:false = 최근 연 파일. 파일을 열면 자동 기록되고 1페이지부터 연다. RECENT_MAX 회전.
-//   saved 없음  = 예전 자동 기록분(레거시) → 양쪽 모두에서 제외.
-//   id가 파일명 집합이라 같은 덱을 📌 저장하면 자동 기록분을 덮어쓴다(양쪽 동시 노출 없음).
+//   saved 없음  = 예전 자동 기록분(레거시) → 목록에서 제외.
+//   id가 파일명 집합이라 같은 덱을 📌 저장하면 자동 기록분을 덮어쓴다(중복 노출 없음).
 //   핸들을 IndexedDB에 그대로 저장(Chromium은 structured clone 지원)해서
 //   다음 방문 때 권한만 다시 받고 로컬 파일을 직접 연다.
-//   FSA 미지원 브라우저에서는 로컬 쪽 진입점이 no-op → 기존 동작 그대로.
-//   드라이브가 연결되면 Drive.lib의 항목을 같은 id로 병합해 같은 두 목록에 함께 보인다(☁ 배지).
+//   FSA 미지원 브라우저에서는 💻가 늘 흐린 상태 → 드라이브 항목만 보인다.
 //   연결 해제 시 드라이브 항목만 사라지고 이 PC의 로컬 항목은 그대로 남는다.
 // ══════════════════════════════════════════════════════════
 const HAS_FSA     = typeof window.showOpenFilePicker === 'function';
@@ -3297,7 +3285,7 @@ const RecentFiles = {
     return row.label || row.names[0] + (row.names.length > 1 ? ` 외 ${row.names.length - 1}개` : '');
   },
 
-  // 정렬 — 두 목록에 같은 기준을 적용한다(localStorage에 유지)
+  // 정렬 — localStorage에 유지
   sortMode() { return localStorage.getItem(STORAGE_KEYS.sort) === 'name' ? 'name' : 'date'; },
   _sort(rows) {
     return this.sortMode() === 'name'
@@ -3365,14 +3353,15 @@ const RecentFiles = {
     return (bm && bm.label) || '';
   },
 
-  // ☁·닫기 저장이 쓰는 자동 이름 — 기존 북마크 label → 없으면 첫 파일명(확장자 제거). 묻지 않는다.
+  // 닫기 저장이 쓰는 자동 이름 — 기존 북마크 label → 없으면 첫 파일명(확장자 제거). 묻지 않는다.
   async autoLabel() {
     const names = state.docs.map(d => d.name);
     return (await this.savedLabel()) || names[0].replace(/\.[^.]+$/, '');
   },
 
-  // 닫기 모달의 "위치 저장하고 닫기" — 이름을 묻지 않고, 업로드·내용 교체도 하지 않는다.
-  //   okMsg: 성공 토스트 문구를 바꾼다(묻지 않고 닫는 경로). 실패 안내 문구는 그대로 둔다.
+  // 💾 저장 후 닫기 / 닫기 모달의 "위치 저장하고 닫기" — 이름을 묻지 않는다.
+  //   드라이브 연동 덱이면 _pushDrive가 이 PC 파일이 더 최신일 때 드라이브 파일도 교체한다(34번).
+  //   okMsg: 성공 토스트 문구를 바꾼다. 실패 안내 문구는 그대로 둔다.
   async saveOnClose(local, drive, okMsg = null) {
     const label = await this.autoLabel();
     const page  = state.currentPage;
@@ -3419,8 +3408,8 @@ const RecentFiles = {
 
   // 📌 현재 덱 + 현재 페이지를 이름 붙여 저장.
   //   로컬: 파일 선택 창으로 연 덱(핸들 있음)일 때.
-  //   드라이브: 드라이브 연동 덱(state.driveFileIds — ☁로 올렸거나 드라이브에서 열었거나 목록과 id·크기가 같음)이면
-  //     드라이브에도 saved:true로 저장. 📌는 드라이브 파일을 올리거나 바꾸지 않는다(그건 ☁에서 사용자가 고른다).
+  //   드라이브: 드라이브 연동 덱(state.driveFileIds — 목록의 ☁로 올렸거나 드라이브에서 열었거나 목록에 있음)이면
+  //     드라이브에도 saved:true로 저장 + 이 PC 파일이 더 최신이면 같은 fileId 내용도 교체(34번).
   //   둘 다 아니면 기존 안내. (드라이브에서 연 덱은 핸들이 없으므로 로컬은 건너뛴다)
   //   📌는 언제나 "현재 페이지"를 저장한다(보류된 예전 페이지로 되돌리지 않는다).
   save() {
@@ -3478,25 +3467,40 @@ const RecentFiles = {
     await this._pushDrive(label, page, local, docs);
   },
 
-  // 드라이브에 위치 저장 — 파일은 올리지도 바꾸지도 않는다. 이 PC에서 연 덱은 연결된 드라이브 파일과
-  // 크기가 모두 같을 때만 저장한다(다른 PC가 교체했거나 이 PC 파일이 다르면 페이지가 어긋나므로 건너뜀).
+  // 드라이브에 위치 저장. 이 PC 파일이 드라이브 파일과 다르고 더 최신이면 같은 fileId 내용도 함께
+  // 교체한다(34번 — 저장을 누른 명시적 행위일 때만). 드라이브가 더 최신이면 파일은 그대로 두고 경고한다.
   async _pushDrive(label, page, local, docs, okMsg = null) {
     if (!Drive.sameDeck(docs)) return;   // 로그인하는 사이 덱이 바뀜 — 이전 덱의 위치는 버린다
     try {
+      let sync = 'skip', note = '', warn = false;
       if (!state.driveOpened) {
+        const r = await Drive.syncFiles(docs);
+        sync = r.state;
+        if (sync === 'replaced') {
+          // 일부만 올린 경우(드라이브가 더 최신인 형제 파일이 있음)는 반드시 알린다 — 36번 D-1
+          note = r.keep ? ` (드라이브 파일 ${r.push}개만 교체 — ${r.keep}개는 드라이브가 더 최신이라 그대로 두었습니다)`
+                        : ' (드라이브 파일도 최신으로 교체)';
+        } else if (sync === 'older') {
+          note = ' — 드라이브 파일이 더 최신이라 파일은 그대로 두었습니다';
+        }
+        if (sync === 'replaced' || sync === 'same') state.driveConflict = r.keep > 0;
+        warn = sync === 'older' || r.keep > 0;
+      }
+      if (!state.driveOpened && sync === 'skip') {
         const same = await Drive._sameSizes(docs, state.driveFileIds);
         if (same !== true) {
           if (Drive.sameDeck(docs)) { state.driveFileIds = null; state.driveConflict = same === false; }
           Drive.pendingSave = null;
           showToast((local ? '이 PC에는 저장했습니다. ' : '위치를 저장하지 못했습니다. ') + (same === false
-            ? '드라이브의 같은 이름 파일과 내용이 달라 드라이브에는 저장하지 않았습니다 — ☁ 드라이브 저장에서 덮어쓰거나 다른 이름으로 저장하세요.'
-            : '드라이브에서 이 강의 파일을 찾을 수 없어 드라이브에는 저장하지 않았습니다 — ☁ 드라이브 저장으로 다시 올리세요.'), true, 5000);
+            ? '드라이브의 같은 이름 파일과 내용이 달라 드라이브에는 저장하지 않았습니다 — 목록의 ☁에서 다시 올리세요.'
+            : '드라이브에서 이 강의 파일을 찾을 수 없어 드라이브에는 저장하지 않았습니다 — 목록의 ☁로 다시 올리세요.'), true, 5000);
           return;
         }
       }
       await Drive.savePos(label, page, state.driveOpened ? null : state.driveFileIds);
       Drive.pendingSave = null;
-      showToast(okMsg || `저장했습니다 (☁ 드라이브 포함) — ${label} · ${pageText(page, state.totalPages)}`);
+      showToast((okMsg || `저장했습니다 (☁ 드라이브 포함) — ${label} · ${pageText(page, state.totalPages)}`) + note,
+                warn, 5000);
     } catch (e) {
       if (!e.quiet) {
         Drive.fail(e, '드라이브 저장에 실패했습니다.', local ? '이 PC에는 저장했지만, ' : '');
@@ -3523,12 +3527,14 @@ const RecentFiles = {
     if (!quiet) showToast('목록에서 제거했습니다.');
   },
 
-  // 드라이브 목록의 ✕ — 확인 후 드라이브 목록에서만 제거한다(PDF 파일과 이 PC 항목은 그대로).
-  //   토큰이 만료됐으면 확인창보다 먼저 재연결한다(확인에 시간이 걸리면 클릭 제스처가 사라져 팝업이 막힘).
-  removeDriveRow(row) {
+  // 행의 ✕ — 이 PC에만 있으면 확인 없이 그 항목만, 드라이브가 걸려 있으면 확인 후 양쪽에서 제거한다
+  //   (PDF 파일은 드라이브에 남는다). 토큰이 만료됐으면 확인창보다 먼저 재연결한다
+  //   (확인에 시간이 걸리면 클릭 제스처가 사라져 팝업이 막힘).
+  removeRow(row) {
+    if (!row.drive) { this.remove(row.id); return; }
     if (Drive.busy) return;
     Drive.ensure(() => {
-      if (!confirm('드라이브 목록에서 제거됩니다. PDF 파일은 드라이브에 남습니다. 계속할까요?')) return;
+      if (!confirm('목록에서 제거됩니다. PDF 파일은 드라이브에 남습니다. 계속할까요?')) return;
       Drive.exclusive(async () => {
         try {
           await Drive.update(list => {
@@ -3541,22 +3547,37 @@ const RecentFiles = {
           else Drive.fail(e, '드라이브 목록에서 제거하지 못했습니다 — 목록은 그대로 둡니다.');
           return;
         }
+        if (row.local) { try { await RecentDB.del(row.id); } catch (e) {} }
         this.render();
-        showToast('드라이브 목록에서 제거했습니다.');
+        showToast(row.local ? '이 PC와 드라이브 목록에서 제거했습니다.' : '드라이브 목록에서 제거했습니다.');
       });
     });
   },
 
-  // 행 클릭 — 이 PC 행은 핸들로 열고, 못 열면(파일 없음·권한 거부) 같은 강의가 드라이브에 있을 때 폴백.
-  // 드라이브 행은 곧바로 드라이브에서 받는다(만료 시 재연결 팝업을 위해 동기 호출).
+  // 이름 영역 클릭 = 기본 열기 — 이 PC 핸들이 있으면 이 PC, 없으면 드라이브
+  open(row) { return this.hasLocal(row) ? this.openLocal(row) : this.openDrive(row); },
+  hasLocal(row) { return !!(row.local && (row.local.handles || []).length); },
+
+  // 💻 이 PC로 열기 — 못 열면(파일 없음·권한 거부) 같은 강의가 드라이브에 있을 때 폴백.
   // 더블클릭·연타로 덱이 두 번 열리지 않게 전 과정을 한 번에 하나만(Drive.exclusive).
-  async open(row) {
-    if (Drive.busy) return;
-    if (row.local) {
-      row.drive = Drive.entries().find(e => e.id === row.id) || null;   // 로컬이 안 열릴 때의 폴백
-      if (!(await Drive.exclusive(() => this._openLocal(row)))) return;
-    }
-    if (row.drive) Drive.ensure(() => Drive.exclusive(() => Drive.open(row)));
+  async openLocal(row) {
+    if (Drive.busy || !row.local) return;
+    if (!(await Drive.exclusive(() => this._openLocal(row)))) return;
+    if (row.drive) this.openDrive(row);
+  },
+
+  // ☁ 드라이브에서 열기 — 만료 시 재연결 팝업을 위해 클릭 핸들러에서 동기 호출
+  openDrive(row) {
+    if (Drive.busy || !row.drive) return;
+    Drive.ensure(() => Drive.exclusive(() => Drive.open(row)));
+  },
+
+  // ☁ 올리기 — 드라이브에 없는 강의를 이 PC 파일로 올린다(덱을 열지 않는다)
+  uploadRow(row) {
+    if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
+    Drive.ensure(() => Drive.exclusive(() => Drive.uploadRow(row)),
+                 hint => showToast('드라이브에 올리지 못했습니다 — 드라이브에 로그인해야 올릴 수 있습니다.'
+                                  + (hint ? ` (${hint})` : ''), true, 5000));
   },
 
   // 반환: true = 드라이브로 폴백해야 함 / false = 처리 끝(성공 또는 안내 완료)
@@ -3611,36 +3632,33 @@ const RecentFiles = {
     return false;
   },
 
-  // 좌 = 이 PC에 있는 항목 전부, 우 = 드라이브에 있는 항목 전부(같은 강의는 양쪽에 각각 한 줄).
+  // 이 PC 항목 + 드라이브 항목을 같은 id로 합쳐 한 줄씩. 표시용 page·time·label은 time이 최신인 쪽을 쓴다
+  //   (다른 PC가 더 나중에 저장했으면 그 위치를 보여 주는 것이 맞다).
   async render() {
     Drive.paintBar();
-    const left = $('recent-section'), right = $('opened-section');
-    left.classList.toggle('hidden', !HAS_FSA);
-    right.classList.toggle('hidden', !DRIVE_ON);
-    const local = HAS_FSA ? await this._localRows() : [];
-    if (HAS_FSA) this._paint($('recent-list'), this._sort(local), 'local');
-    if (DRIVE_ON) {
-      // 같은 id가 이 PC에도 있으면 그 항목을 mate로 달아 준다(⬆ 업데이트 대상 판정용).
-      // row.local에 넣으면 우측 행 클릭이 로컬 열기로 새 버릴 수 있어 별도 필드를 쓴다.
-      const mate = new Map(local.map(r => [r.id, r.local]));
-      const rows = this._driveRows();
-      for (const r of rows) r.mate = mate.get(r.id) || null;
-      this._paint($('opened-list'), this._sort(rows), 'drive');
+    $('recent-section').classList.toggle('hidden', !HAS_FSA && !DRIVE_ON);
+    const rows = new Map();
+    for (const r of (HAS_FSA ? await this._localRows() : [])) rows.set(r.id, r);
+    for (const d of (DRIVE_ON ? this._driveRows() : [])) {
+      const r = rows.get(d.id);
+      if (!r) { rows.set(d.id, d); continue; }
+      r.drive = d.drive;
+      if (d.time > r.time) Object.assign(r, { names: d.names, label: d.label, page: d.page, total: d.total, time: d.time });
     }
+    this._paint($('recent-list'), this._sort([...rows.values()]));
   },
 
-  // side: 'local'(이 PC) | 'drive'(구글 드라이브 저장)
   // 드라이브에서 온 이름·label은 전부 textContent로만 넣는다(XSS 방지).
-  _paint(list, rows, side) {
+  _paint(list, rows) {
     list.textContent = '';
 
-    if (side === 'drive' && Drive.loading) {
+    if (DRIVE_ON && Drive.loading) {
       const ld = document.createElement('div');
       ld.className = 'drive-loading';
       ld.textContent = '☁ 드라이브 불러오는 중…';
       list.appendChild(ld);
       if (!rows.length) return;   // 불러오는 중엔 "없습니다" 문구를 띄우지 않는다
-    } else if (side === 'drive' && Drive.error) {
+    } else if (DRIVE_ON && Drive.error) {
       // 목록 실패는 토스트가 사라진 뒤에도 남긴다 — 연결된 채 "강의 없음"만 보이면 드라이브가 비었다고 오해한다
       const er = document.createElement('div');
       er.className = 'drive-error';
@@ -3658,11 +3676,8 @@ const RecentFiles = {
     if (!rows.length) {
       const empty = document.createElement('div');
       empty.className = 'recent-empty';
-      empty.textContent = side === 'local'
-        ? '이 PC에 저장된 강의가 없습니다\n파일을 열고 📌 또는 ☁로 저장하면 여기에 표시됩니다'
-        : Drive.isConnected()
-          ? '드라이브에 저장된 강의가 없습니다\n☁ 드라이브 저장을 누르면 여기에 표시됩니다'
-          : 'Google 드라이브를 연결하면 저장한 강의가 표시됩니다';
+      empty.textContent = '저장된 강의가 없습니다\n파일을 열고 📌 또는 💾 저장 후 닫기를 누르면 여기에 표시됩니다'
+        + (DRIVE_ON && !Drive.isConnected() ? '\n(Google 드라이브를 연결하면 다른 PC에 저장한 강의도 함께 보입니다)' : '');
       list.appendChild(empty);
       return;
     }
@@ -3684,38 +3699,69 @@ const RecentFiles = {
       const del = document.createElement('button');
       del.className = 'recent-del';
       del.textContent = '✕';
-      del.title = side === 'local' ? '이 PC 목록에서 제거' : '드라이브 목록에서 제거';
+      del.title = row.drive && row.local ? '이 PC와 드라이브 목록에서 제거'
+                : row.drive ? '드라이브 목록에서 제거' : '이 PC 목록에서 제거';
       del.setAttribute('aria-label', del.title);
-      del.addEventListener('click', e => {
-        e.stopPropagation();
-        if (side === 'local') this.remove(row.id); else this.removeDriveRow(row);
-      });
+      del.addEventListener('click', e => { e.stopPropagation(); this.removeRow(row); });
 
-      // 드라이브 행 + 이 PC에 같은 강의가 있을 때만 ⬆ 업데이트. 판정은 비동기라 일단 보통 상태로 두고
-      // (그 사이 눌러도 클릭 경로가 다시 비교한다) 판정이 끝나면 이 행만 갱신한다 — 목록 재렌더 금지(스크롤 유지).
-      const up = side === 'drive' && row.mate ? this._upButton(row) : null;
-
-      el.append(name, time, ...(up ? [up] : []), del);
+      el.append(name, time, this._pcButton(row));
+      // 드라이브 기능이 없는 배포본(Client ID 미설정)에는 ☁·⬆를 만들지 않는다
+      if (DRIVE_ON) {
+        el.append(this._cloudButton(row));
+        // 양쪽에 있을 때만 ⬆ 업데이트. 판정은 비동기라 일단 숨긴 채 두고(그 사이 눌러도 클릭 경로가
+        // 다시 비교한다) 판정이 끝나면 이 행만 갱신한다 — 목록 재렌더 금지(스크롤 유지).
+        if (row.local && row.drive) el.append(this._upButton(row));
+      }
+      el.append(del);
+      // 이름 영역(행 전체) 클릭 = 기본 열기. 아이콘 버튼은 stopPropagation(없음 상태는 disabled라 클릭이 안 뜬다)
       el.addEventListener('click', () => this.open(row));   // page 없으면 1페이지
       list.appendChild(el);
     }
   },
 
-  // 드라이브 행의 ⬆ 업데이트 버튼. row.recheck()로 이 행만 다시 판정한다(업데이트 후 호출).
+  // 아이콘 버튼 공통 — 22px 상자, 행 클릭과 겹치지 않게 stopPropagation
+  _actButton(icon, title, cls, onClick) {
+    const b = document.createElement('button');
+    b.className = 'recent-act' + (cls ? ' ' + cls : '');
+    b.textContent = icon;
+    b.title = title;
+    b.setAttribute('aria-label', title);
+    if (onClick) b.addEventListener('click', e => { e.stopPropagation(); onClick(); });
+    else b.disabled = true;
+    return b;
+  },
+
+  // 💻 이 PC — 핸들이 있으면 진하게 + 클릭으로 열기, 없으면 흐리게·클릭 불가
+  _pcButton(row) {
+    const ok = this.hasLocal(row);
+    const b = this._actButton('💻', ok ? '이 PC 파일로 열기' : '이 PC에는 없습니다',
+                              ok ? 'has' : '', ok ? () => this.openLocal(row) : null);
+    b.dataset.act = 'pc';
+    return b;
+  },
+
+  // ☁ 드라이브 — 있으면 열기, 없고 이 PC 파일이 있으면 올리기(강조), 둘 다 아니면 흐리게
+  _cloudButton(row) {
+    const b = row.drive
+      ? this._actButton('☁', '드라이브에서 열기', 'has', () => this.openDrive(row))
+      : this.hasLocal(row)
+        ? this._actButton('☁', '구글 드라이브에 올리기', 'on', () => this.uploadRow(row))
+        : this._actButton('☁', '드라이브에 없습니다', '', null);
+    b.dataset.act = 'cloud';
+    return b;
+  },
+
+  // ⬆ 업데이트 버튼. row.recheck()로 이 행만 다시 판정한다(업데이트 후 호출).
   _upButton(row) {
-    const up = document.createElement('button');
-    up.className = 'recent-up';
-    up.textContent = '⬆';
     const base = '이 PC의 최신 파일로 드라이브 업데이트';
-    up.title = base;
-    up.setAttribute('aria-label', base);
-    up.addEventListener('click', e => {
-      e.stopPropagation();   // 행 클릭(= 열기)과 겹치지 않게
+    const up = this._actButton('⬆', base, '', () => {
       if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
       Drive.ensure(() => Drive.exclusive(() => Drive.updateFromLocal(row)),
                    hint => showToast('드라이브를 업데이트하지 못했습니다 — 드라이브에 로그인해야 올릴 수 있습니다.'
                                     + (hint ? ` (${hint})` : ''), true, 5000));
     });
+    up.dataset.act = 'up';
+    up.hidden = true;   // 판정 전에는 숨긴다(양쪽이 같은 내용이면 끝까지 안 보인다)
     row.recheck = async () => {
       const s = await Drive.updateState(row);
       up.hidden = s.state === 'none' || s.state === 'same';
@@ -3735,11 +3781,12 @@ const RecentFiles = {
 //   저장: 드라이브 폴더 'Lecture Annotation Tool' 안에 PDF들 + library.json 하나.
 //     library.json = { v:1, entries:[{ id, names, fileIds, label?, page?, time, saved }] }
 //     (로컬 IndexedDB 항목과 같은 스키마, handles 대신 fileIds). 동시 편집은 last-write-wins.
-//   역할: ☁ = 강의 파일을 드라이브로 복사(위치는 그대로 — 북마크가 있으면 saved:true, 없으면 saved:false).
-//             같은 이름·다른 내용의 파일이 있으면 [덮어쓰기 / 다른 이름으로 저장 / 취소]를 묻는다.
-//         📌 = 위치 저장(드라이브 연동 덱이면 드라이브에도 saved:true). 파일은 올리거나 바꾸지 않는다.
-//   → 드라이브 파일 내용은 ☁에서 사용자가 "덮어쓰기"를 고른 경우에만 바뀐다.
-//         순수 로컬 덱(☁ 안 누름)은 드라이브에 아무것도 쓰지 않는다.
+//   역할: 목록의 ☁ = 이 PC 강의를 드라이브에 올리기(덱을 열지 않는다. 같은 이름·다른 내용 파일이 있으면
+//             [덮어쓰기 / 다른 이름으로 저장 / 취소]를 묻는다).  목록의 ⬆ = 이 PC 최신 파일로 교체.
+//         📌·💾 = 위치 저장(드라이브 연동 덱이면 드라이브에도 saved:true). 이때 이 PC 파일이 드라이브
+//             파일보다 최신이면 같은 fileId 내용도 함께 교체한다(34번) — 드라이브가 더 최신이면 그대로 둔다.
+//   → 드라이브 파일 내용이 바뀌는 것은 사용자가 ☁·⬆·저장을 누른 경우뿐. 열기만 하면 아무것도 올리지 않는다.
+//         드라이브 목록에 없는 순수 로컬 덱은 드라이브에 아무것도 쓰지 않는다.
 //   드라이브 항목은 로컬에 캐시하지 않는다(공용 PC에 흔적을 남기지 않음).
 //   모든 오류는 토스트/목록 안내로만 알리고 로컬 기능을 막지 않는다.
 // ══════════════════════════════════════════════════════════
@@ -4074,8 +4121,9 @@ const Drive = {
     for (const o of olds) list.splice(list.indexOf(o), 1);
   },
 
-  // 로컬에서 연 덱이 드라이브 목록에도 있고 파일 크기가 모두 같을 때만 연동(📌 진도가 드라이브에도 반영).
-  // 크기가 다르면(같은 이름의 다른 버전) 연결하지 않고 알린다 — 드라이브 파일은 ☁에서 사용자가 고를 때만 바뀐다.
+  // 로컬에서 연 덱이 드라이브 목록에도 있으면 연동한다(📌·💾 진도가 드라이브에도 반영).
+  // 크기가 다르면(이 PC에서 고친 버전) 연동은 그대로 두고 알린다 — 저장을 누를 때 이 PC가 더 최신이면
+  // 같은 fileId 내용을 바꾼다(34번). 파일을 열기만 할 때는 아무것도 올리지 않는다.
   async link() {
     if (!this.isConnected() || !this.lib) return;
     const docs = state.docs.slice();
@@ -4086,11 +4134,15 @@ const Drive = {
     try { same = await this._sameSizes(docs, ids); }
     catch (x) { if (!x.quiet) console.warn('drive: link check failed', x); return; }
     if (!this.sameDeck(docs)) return;
-    if (same === true) { state.driveFileIds = ids; this.record(); return; }
+    if (same === 'missing') return;
+    state.driveFileIds = ids;
     if (same === false) {
       state.driveConflict = true;
-      showToast('드라이브에 같은 이름의 다른 버전이 있습니다 — ☁ 드라이브 저장에서 덮어쓰거나 다른 이름으로 저장할 수 있습니다.', false, 6000);
+      showToast('드라이브 파일과 내용이 다릅니다 — 저장할 때 이 PC 파일이 더 최신이면 드라이브 파일도 함께 최신으로 바꿉니다.', false, 6000);
+      return;
     }
+    state.driveConflict = false;   // 같은 내용으로 확인됐다(예전 충돌 표시를 남기지 않는다)
+    this.record();
   },
 
   // 연결된 드라이브 파일들이 이 PC 파일과 크기가 같은가 — true / false(내용 다름) / 'missing'(삭제·휴지통).
@@ -4134,78 +4186,120 @@ const Drive = {
     loadingOverlay.classList.add('visible');
   },
 
-  // ☁ 드라이브 저장 — 강의 파일을 드라이브로 복사하고 **현재 페이지까지 저장**한다(이름은 묻지 않는다).
-  //   label = 기존 북마크(로컬·드라이브 중 최신) → 없으면 첫 파일명. 핸들이 있으면 이 PC 북마크도 같은 값으로.
-  //   같은 이름·다른 크기 파일이 있으면 먼저 묻는다(아무것도 올리기 전에):
-  //     덮어쓰기 → 같은 fileId 내용 교체 / 다른 이름으로 저장 → 새 파일 + 덱 이름 변경(별도 강의) / 취소
-  async saveDeck() {
-    if (!state.pdf) return;
-    this._progress('드라이브에 올리는 중…');   // 첫 요청 전에 바로 — 무반응 구간·연타 방지
-    const docs = state.docs.slice();
+  // 목록의 ☁ 올리기 — 드라이브에 없는 강의를 이 PC 파일로 올린다. 덱을 열지 않은 상태에서 도는
+  //   경로이므로 바이트는 핸들에서 직접 읽고 앱 상태(state.*)는 건드리지 않는다.
+  //   label·page·total은 이 PC 항목 값(없으면 파일명·1페이지). 같은 이름·다른 내용 파일이 드라이브에
+  //   이미 있으면 기존 충돌 모달(덮어쓰기 / 다른 이름으로 저장 / 취소).
+  async uploadRow(row) {
+    const e = row.local;
+    if (!e || !(e.handles || []).length) return;
     try {
+      // 권한 요청은 클릭 제스처가 살아 있는 동안 먼저 처리한다
+      for (const h of e.handles) {
+        if (!h.queryPermission) continue;
+        let perm = await h.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') perm = await h.requestPermission({ mode: 'read' });
+        if (perm !== 'granted') { showToast('파일 접근 권한이 거부되어 올리지 못했습니다.', true, 5000); return; }
+      }
+      this._progress('드라이브에 올리는 중…');   // 첫 요청 전에 바로 — 무반응 구간·연타 방지
       // 올리기 전에 목록을 쓸 수 있는지 확인(손상된 library면 올린 PDF가 고아 파일로 남는다)
       const lib = await this._read();
       if (lib.bad) throw Object.assign(new Error('drive: bad library'), { bad: true });
-      let fileIds, newNames = null, renamed = [];
-      if (state.driveOpened) {
-        fileIds = state.driveFileIds;   // 드라이브에서 받은 덱은 다시 올리지 않는다(다른 PC의 새 버전 보호)
-      } else {
-        const folder = await this._folder();
-        const old = lib.entries.find(e => e.id === deckId(docs.map(d => d.name)));
-        const prefer = old ? docs.map(d => old.fileIds[old.names.indexOf(d.name)]) : null;
-        const plan = await this._plan(folder, docs, prefer);
-        const conflicts = plan.flatMap((p, i) => p.conflict ? [{ i, file: p.conflict }] : []);
-        let choice = null;
-        if (conflicts.length) {
-          loadingOverlay.classList.remove('visible');
-          choice = await this.askConflict(conflicts.map(c => ({
-            name: docs[c.i].name, size: Number(c.file.size), modified: c.file.modifiedTime, local: docs[c.i].bytes.byteLength })));
-          if (choice === 'rename') newNames = await this._renamePlan(folder, docs, conflicts);
-          if (choice === 'cancel' || (choice === 'rename' && !newNames)) {
-            showToast('드라이브에 저장하지 않았습니다.');
-            return;
-          }
-          this._progress('드라이브에 올리는 중…');
-        }
-        fileIds = [];
-        for (let i = 0; i < docs.length; i++) {
-          const p = plan[i];
-          if (p.reuse) { fileIds.push(p.reuse); continue; }
-          const name = newNames ? newNames[i] : docs[i].name;
-          const replace = p.conflict && choice === 'overwrite' ? p.conflict.id : null;
-          if (newNames && p.conflict) renamed.push(name);
-          const pct = f => this._progress(`드라이브에 올리는 중… ${Math.floor((i + f) / docs.length * 100)}%`);
-          pct(0);
-          fileIds.push(await this._upload(folder, name, docs[i].bytes, replace, pct));
-        }
+      // 항목의 이름·순서로 올린다(_openLocal과 같은 짝짓기 규칙)
+      const got   = await Promise.all(e.handles.map(h => h.getFile()));
+      const byName = e.names.every(n => got.some(f => f.name === n));
+      const docs  = [];
+      for (let i = 0; i < e.names.length; i++) {
+        const f = byName ? got.find(x => x.name === e.names[i]) : got[i];
+        docs.push({ name: e.names[i], bytes: await f.arrayBuffer() });
       }
-      // 다른 이름으로 저장 → 이 덱은 새 이름(새 id)의 별도 강의가 된다. 기존 항목·파일은 그대로.
-      if (newNames) {
-        docs.forEach((d, i) => { d.name = newNames[i]; });
-        if (this.sameDeck(docs)) updateDownloadForPage(state.currentPage);
+      const folder = await this._folder();
+      const plan = await this._plan(folder, docs, null);
+      const conflicts = plan.flatMap((p, i) => p.conflict ? [{ i, file: p.conflict }] : []);
+      let newNames = null, renamed = [];
+      if (conflicts.length) {
+        loadingOverlay.classList.remove('visible');
+        const choice = await this.askConflict(conflicts.map(c => ({
+          name: docs[c.i].name, size: Number(c.file.size), modified: c.file.modifiedTime, local: docs[c.i].bytes.byteLength })));
+        if (choice === 'rename') newNames = await this._renamePlan(folder, docs, conflicts);
+        if (choice === 'cancel' || (choice === 'rename' && !newNames)) {
+          showToast('드라이브에 저장하지 않았습니다.');
+          return;
+        }
+        if (newNames) renamed = conflicts.map(c => newNames[c.i]);
+        this._progress('드라이브에 올리는 중…');
+      }
+      const fileIds = [];
+      for (let i = 0; i < docs.length; i++) {
+        if (plan[i].reuse) { fileIds.push(plan[i].reuse); continue; }
+        const name = newNames ? newNames[i] : docs[i].name;
+        const replace = plan[i].conflict && !newNames ? plan[i].conflict.id : null;
+        const pct = f => this._progress(`드라이브에 올리는 중… ${Math.floor((i + f) / docs.length * 100)}%`);
+        pct(0);
+        fileIds.push(await this._upload(folder, name, docs[i].bytes, replace, pct));
       }
       this._metaP = null;   // 방금 올렸다 — ⬆ 판정용 메타 캐시를 버린다
-      const names = docs.map(d => d.name), id = deckId(names);
-      const label = await RecentFiles.autoLabel();   // 묻지 않는다 — 기존 북마크 label 또는 파일명
-      const page  = state.currentPage;
-      const total = docs.reduce((s, d) => s + d.numPages, 0);   // 올린 덱 기준(업로드 중 덱이 바뀌어도 맞게)
+      // 다른 이름으로 저장 → 새 이름(새 id)의 별도 강의가 된다. 이 PC 항목·기존 파일은 그대로.
+      //   이름도 새 파일명 기준으로 붙인다 — 이 PC 항목 label을 그대로 쓰면 목록에 똑같은 행이 둘 생긴다(36번 O-1).
+      const names = newNames || docs.map(d => d.name);
+      const label = (!newNames && e.label) || names[0].replace(/\.[^.]+$/, '');
+      const page  = e.page || 1;
       await this.update(list => this._upsert(list,
-        { id, names, fileIds, label, page, total, time: Date.now(), saved: true }));
+        { id: deckId(names), names, fileIds, label, page, total: e.total, time: Date.now(), saved: true }));
       loadingOverlay.classList.remove('visible');
-      if (this.sameDeck(docs)) {
-        state.driveFileIds = fileIds;   // 이후 📌가 드라이브에도 저장
-        state.driveConflict = false;
-        this.pendingSave = null;        // 방금 현재 위치를 드라이브에 기록했다
-        // 이 PC 북마크도 같은 label·page로 — 양쪽 목록이 어긋나지 않게
-        if (HAS_FSA && state.handles) await RecentFiles.saveLocal(label, page);
-      }
       showToast(newNames
-        ? `${renamed.map(n => `'${n}'`).join(', ')}(으)로 드라이브에 저장했습니다 — ${label} · ${pageText(page, total)} (기존 파일은 그대로)`
-        : `드라이브에 저장했습니다 — ${label} · ${pageText(page, total)}`, false, 5000);
-    } catch (e) {
+        ? `${renamed.map(n => `'${n}'`).join(', ')}(으)로 드라이브에 올렸습니다 — ${label} · ${pageText(page, e.total)} (기존 파일은 그대로)`
+        : `드라이브에 올렸습니다 — ${label} · ${pageText(page, e.total)}`, false, 5000);
+    } catch (err) {
       loadingOverlay.classList.remove('visible');
-      this.fail(e, '드라이브 저장에 실패했습니다.');
+      this.fail(err, '드라이브에 올리지 못했습니다.');
     }
+  },
+
+  // 📌·💾 저장 시 드라이브 파일 자동 갱신(34번) — 이 PC 파일이 드라이브 파일과 다르고 **더 최신**인
+  //   파일만 같은 fileId로 교체한다(신규 업로드 0). 드라이브가 더 최신인 파일은 건드리지 않는다(36번 D-1).
+  //   반환: { state, push, keep }
+  //     state: 'same'(교체 불필요) | 'replaced'(push개 교체) | 'older'(올릴 것 없음) | 'skip'(판정 불가 → 호출부가 기존 검사로)
+  //     keep > 0 이면 드라이브가 더 최신이라 그대로 둔 파일이 있다는 뜻 — 호출부가 반드시 알려야 한다.
+  async syncFiles(docs) {
+    const skip = { state: 'skip', push: 0, keep: 0 };
+    const ids = state.driveFileIds;
+    if (state.driveOpened || !state.handles || !ids || ids.length !== docs.length) return skip;
+    const pairs = docs.map((d, i) => ({ fileId: ids[i], h: state.handles[i] }));
+    if (pairs.some(p => !p.h)) return skip;
+    const meta = new Map();
+    let files;
+    try {
+      files = await Promise.all(pairs.map(p => p.h.getFile()));
+      // folderMeta 캐시를 쓰지 않는다 — 다른 PC가 방금 올린 새 버전을 덮어쓰지 않으려면 지금 값을 봐야 한다.
+      // 파일이 없거나 휴지통이면 'skip' → 호출부의 기존 안내 경로로 넘긴다.
+      for (const id of ids) {
+        let m;
+        try { m = await this._json('GET', `${DRIVE_API}/files/${encodeURIComponent(id)}?fields=size,modifiedTime,trashed`); }
+        catch (e) { if (e.status === 404) return skip; throw e; }
+        if (m.trashed) return skip;
+        meta.set(id, { size: Number(m.size) || 0, modified: Date.parse(m.modifiedTime) || 0 });
+      }
+    } catch (err) {
+      if (err.quiet) throw err;
+      console.warn('drive: syncFiles check failed', err);
+      return skip;
+    }
+    const c = this._cmp(pairs, files, meta);
+    if (c.state === 'same') return { state: 'same', push: 0, keep: 0 };
+    // 이 PC가 더 최신인 파일만 올린다 — 드라이브가 더 최신인 형제 파일은 건드리지 않는다(36번 D-1)
+    const todo = pairs.map((p, i) => ({ ...p, file: files[i] })).filter((p, i) => c.per[i].differs && c.per[i].localNewer);
+    if (!todo.length) return { state: 'older', push: 0, keep: c.keep };
+    try {
+      this._progress('드라이브 파일을 최신으로 바꾸는 중…');
+      for (let i = 0; i < todo.length; i++) {
+        const pct = f => this._progress(`드라이브 파일을 최신으로 바꾸는 중… ${Math.floor((i + f) / todo.length * 100)}%`);
+        pct(0);
+        await this._upload(null, todo[i].file.name, await todo[i].file.arrayBuffer(), todo[i].fileId, pct);
+      }
+      this._metaP = null;   // 크기·수정시각이 바뀌었다
+    } finally { loadingOverlay.classList.remove('visible'); }
+    return { state: 'replaced', push: todo.length, keep: c.keep };
   },
 
   // 각 파일의 드라이브 상태 조사(아무것도 올리지 않음).
@@ -4315,21 +4409,33 @@ const Drive = {
     }));
   },
 
-  // 크기(내용 동일 판정) + 수정시각(최신 판정) 비교 → 상태와 툴팁 문구
+  // 크기(내용 동일 판정) + 수정시각(최신 판정) 비교 → 파일별 판정 + 덱 전체 상태 + 툴팁 문구.
+  //   판정은 반드시 **파일별**이어야 한다. 덱 전체 max(수정시각)으로 뭉뚱그리면, 이 PC가 더 최신인 파일
+  //   하나 때문에 "드라이브가 더 최신인 형제 파일"까지 옛 사본으로 되돌아간다(36번 D-1 · 데이터 손실).
+  //   per[i] = { differs(크기 다름), localNewer(이 PC가 더 최신) }
+  //   push = 올려야 할 파일 수 / keep = 드라이브가 더 최신이라 건드리면 안 되는 파일 수
+  //   state: 'same'(모두 같음) | 'older-local'(keep이 하나라도 있음) | 'newer-local'(올릴 것만 있음)
+  //   단일 파일 덱에서는 예전 판정과 결과가 같다.
   _cmp(pairs, files, meta) {
     const dm  = pairs.map(p => meta.get(p.fileId));
-    const same = files.every((f, i) => f.size === dm[i].size);
+    const per = files.map((f, i) => ({
+      differs: f.size !== dm[i].size,
+      localNewer: (f.lastModified || 0) > dm[i].modified,
+    }));
+    const push = per.filter(p => p.differs && p.localNewer).length;
+    const keep = per.filter(p => p.differs && !p.localNewer).length;
     const lt = Math.max(...files.map(f => f.lastModified || 0));
     const dt = Math.max(...dm.map(m => m.modified));
     const tip = `이 PC ${fmtSize(files.reduce((s, f) => s + f.size, 0))}(${fmtMonthDay(lt)})`
               + ` / 드라이브 ${fmtSize(dm.reduce((s, m) => s + m.size, 0))}(${fmtMonthDay(dt)})`;
-    return { state: same ? 'same' : lt > dt ? 'newer-local' : 'older-local', tip, dm, files, lt, dt };
+    return { state: !push && !keep ? 'same' : keep ? 'older-local' : 'newer-local',
+             per, push, keep, tip, dm, files, lt, dt };
   },
 
   // ⬆ 버튼 상태. 권한 조회(queryPermission)는 제스처가 필요 없지만, granted가 아니면 비교 자체가 불가능하므로
   //   'unknown'으로 두고 클릭 때 권한을 요청해 판정한다. 'none'·'same'이면 버튼을 숨긴다.
   async updateState(row) {
-    const e = row.drive, local = row.mate;
+    const e = row.drive, local = row.local;
     if (!e || !local || !(local.handles || []).length || !this.ready()) return { state: 'none' };
     let meta;
     try { meta = await this.folderMeta(); } catch (err) { return { state: 'unknown' }; }
@@ -4349,7 +4455,7 @@ const Drive = {
   //   같은 내용이면 아무것도 올리지 않고, 이 PC 파일이 더 오래되면 먼저 확인한다.
   //   드라이브 항목의 label·page는 건드리지 않는다(파일만 갱신 — library 쓰기 0).
   async updateFromLocal(row) {
-    const e = row.drive, local = row.mate;
+    const e = row.drive, local = row.local;
     if (!e || !local) return;
     const pairs = this._pairHandles(e, local.handles || []);
     try {
@@ -4367,7 +4473,7 @@ const Drive = {
       const files = await Promise.all(pairs.map(p => p.h.getFile()));
       const meta  = await this.folderMeta();
       if (pairs.some(p => !meta.get(p.fileId))) {
-        showToast('드라이브에서 이 강의 파일을 찾을 수 없어 업데이트하지 못했습니다 — ☁ 드라이브 저장으로 다시 올리세요.', true, 5000);
+        showToast('드라이브에서 이 강의 파일을 찾을 수 없어 업데이트하지 못했습니다 — ✕로 목록에서 지운 뒤 ☁로 다시 올리세요.', true, 5000);
         return;
       }
       const c = this._cmp(pairs, files, meta);
@@ -4375,9 +4481,14 @@ const Drive = {
         showToast('이미 최신입니다 — 드라이브 파일과 같은 내용입니다.');
         return;
       }
-      if (c.state === 'older-local'
-          && !confirm(`이 PC 파일이 드라이브 파일보다 오래되었습니다(이 PC: ${fmtMonthDay(c.lt)}, 드라이브: ${fmtMonthDay(c.dt)}). 그래도 드라이브를 이 PC 파일로 바꿀까요?`)) return;
-      const todo = pairs.map((p, i) => ({ ...p, file: files[i] })).filter((p, i) => files[i].size !== c.dm[i].size);
+      // 드라이브가 더 최신인 파일이 하나라도 있으면 먼저 확인한다 — 다중 파일 덱에서 형제 파일이
+      // 조용히 옛 사본으로 되돌아가지 않게(36번 D-1). 확인하면 다른 파일까지 전부 교체한다.
+      const older = files.map((f, i) => ({ f, i })).filter(({ i }) => c.per[i].differs && !c.per[i].localNewer);
+      const when = ({ f, i }) => (files.length > 1 ? `${f.name} — ` : '')
+        + `이 PC: ${fmtMonthDay(f.lastModified || 0)}, 드라이브: ${fmtMonthDay(c.dm[i].modified)}`;
+      if (older.length
+          && !confirm(`이 PC 파일이 드라이브 파일보다 오래되었습니다(${older.map(when).join(' / ')}). 그래도 드라이브를 이 PC 파일로 바꿀까요?`)) return;
+      const todo = pairs.map((p, i) => ({ ...p, file: files[i] })).filter((p, i) => c.per[i].differs);
       this._progress('드라이브를 업데이트하는 중…');
       for (let i = 0; i < todo.length; i++) {
         const pct = f => this._progress(`드라이브를 업데이트하는 중… ${Math.floor((i + f) / todo.length * 100)}%`);
