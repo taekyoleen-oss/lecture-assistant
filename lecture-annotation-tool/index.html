@@ -564,6 +564,18 @@
     }
     #blank-overlay.black { display: block; background: #000; }
     #blank-overlay.white { display: block; background: #fff; }
+    /* 빠져나오는 법 안내 — 켠 직후 잠깐만 보이고 사라진다(강의 화면을 계속 가리지 않게) */
+    #blank-overlay::after {
+      content: '아무 곳이나 누르면 돌아갑니다 (B · W · Esc)';
+      position: absolute; left: 0; right: 0; bottom: 8%;
+      text-align: center;
+      font-size: 14px; letter-spacing: 0.02em;
+      opacity: 0; transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+    #blank-overlay.black::after { color: rgba(255,255,255,0.55); }
+    #blank-overlay.white::after { color: rgba(0,0,0,0.45); }
+    #blank-overlay.hint::after  { opacity: 1; }
 
     /* ── Toolbar ───────────────────────────────────────────── */
     #toolbar {
@@ -1261,7 +1273,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-24.4';
+const APP_VERSION = '2026-09-24.5';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2200,8 +2212,22 @@ function setBlank(mode) {
   blankMode = (blankMode === mode) ? null : mode;
   blankOverlay.classList.toggle('black', blankMode === 'black');
   blankOverlay.classList.toggle('white', blankMode === 'white');
+  // 켤 때마다 "누르면 돌아갑니다" 힌트를 잠깐 보여 준다(검은 화면에서 빠져나오는 법을 모르면 강의가 멈춘다)
+  blankOverlay.classList.toggle('hint', !!blankMode);
+  if (blankMode) setTimeout(() => blankOverlay.classList.remove('hint'), 2200);
 }
-blankOverlay.addEventListener('click', () => setBlank(null));
+// 눌렀을 때 바로 해제 — pointerdown으로 받아 터치·펜·마우스를 한 번에 처리한다.
+// 오버레이가 사라지면 같은 누름의 뒤따르는 click이 **아래 버튼**으로 가서 검은 화면이
+// 곧바로 다시 켜진다(= "다시 눌러도 해제가 안 된다"의 실제 원인) → 그 한 번을 삼킨다.
+function closeBlank(e) {
+  if (e) e.preventDefault();
+  setBlank(null);
+  const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };
+  document.addEventListener('click', swallow, true);
+  setTimeout(() => document.removeEventListener('click', swallow, true), 500);
+}
+blankOverlay.addEventListener('pointerdown', closeBlank);
+blankOverlay.addEventListener('click', closeBlank);   // 포인터 이벤트가 없는 환경 대비
 
 // ══════════════════════════════════════════════════════════
 // LectureTimer — 스톱워치 / 카운트다운 (Date.now 기준, 드리프트 없음)
@@ -2769,6 +2795,7 @@ function closeDeck(keepToast = false) {
   Drive.pendingSave = null;
   StrokeStore.clearAll();
   History.resetAll();
+  if (blankMode) setBlank(null);   // 검은/흰 화면을 켠 채로 닫아도 첫 화면이 가려지지 않게
 
   if (isPresenting()) exitPresentationMode();
   loadingOverlay.classList.remove('visible');
@@ -2964,6 +2991,9 @@ const KeyboardHandler = {
       // switch 하나만 유지한다 — 분기를 늘리지 않으니 중복 실행 걱정이 없다.
       // (숫자·화살표·Esc는 e.code가 KeyX가 아니므로 그대로 e.key를 탄다.)
       const key = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : e.key;
+      // 검은/흰 화면 중에는 어떤 키를 눌러도 먼저 빠져나온다(빠져나오는 법을 몰라 강의가 멈추지 않게).
+      // b·w는 아래 switch에서 토글·전환을 그대로 처리한다.
+      if (blankMode && key !== 'b' && key !== 'w') { setBlank(null); e.preventDefault(); return; }
       switch (key) {
         case 'ArrowLeft':
         case 'ArrowUp':
