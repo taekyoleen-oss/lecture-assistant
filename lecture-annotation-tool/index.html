@@ -1261,7 +1261,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-24.3';
+const APP_VERSION = '2026-09-24.4';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2355,6 +2355,10 @@ drawCanvas.addEventListener('mousedown', e => {
 // 캔버스에만 걸어 두므로 툴바·하단바·블랭크 오버레이 클릭은 무관하다.
 const CLICK_ADVANCE_SKIP = ['text', 'select', 'screenshot'];
 let clickAdvanceFrom = null;
+// 터치(모바일)인지 기억해 둔다 — 터치 탭은 슬라이드 왼쪽=이전 / 오른쪽=다음으로 나눈다.
+// 마우스·펜은 기존대로 어디를 눌러도 다음 페이지(발표 중 클릭 감각을 바꾸지 않는다).
+let lastPointerType = 'mouse';
+drawCanvas.addEventListener('pointerdown', e => { lastPointerType = e.pointerType || 'mouse'; }, true);
 drawCanvas.addEventListener('mousedown', e => {
   clickAdvanceFrom = (e.button === 0 && isPresenting() && isInsideCanvas(e) &&
                       !CLICK_ADVANCE_SKIP.includes(state.activeTool))
@@ -2370,7 +2374,10 @@ drawCanvas.addEventListener('mouseup', e => {
     currentStroke   = null;
     History.dropSnapshot();                    // mousedown에서 잡은 스냅샷도 되돌린다
   }
-  goToPage(state.currentPage + 1);             // showPage가 미리보기 잔상까지 재렌더
+  // 터치: 슬라이드 왼쪽 절반을 누르면 이전 페이지(맨 앞이면 goToPage가 그대로 둔다)
+  const r = drawCanvas.getBoundingClientRect();
+  const back = lastPointerType === 'touch' && e.clientX < r.left + r.width / 2;
+  goToPage(state.currentPage + (back ? -1 : 1));   // showPage가 미리보기 잔상까지 재렌더
 });
 
 drawCanvas.addEventListener('mousemove', e => {
