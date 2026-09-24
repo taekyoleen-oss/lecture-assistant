@@ -364,6 +364,8 @@
     .drive-btn:hover { background: rgba(59,130,246,0.10); color: #3B82F6; border-color: #3B82F6; }
     a.drive-btn { display: inline-block; text-decoration: none; }
     a.drive-btn[hidden] { display: none; }
+    /* 미연결 표시 — 연결 버튼 옆에 상태를 분명히 */
+    #drive-off { color: var(--text-dim); }
     #drive-note { color: var(--text-muted); }   /* 공용 PC 로그아웃 안내 — dim(대비 2.6:1)은 프로젝터에서 안 보인다 */
     .drive-loading { padding: 5px 12px; font-size: 11px; color: var(--text-dim); }
     /* 목록 불러오기 실패 — 토스트가 사라진 뒤에도 "강의 없음"으로 오해하지 않게 남겨 둔다 */
@@ -737,7 +739,7 @@
     [data-theme="dark"] #save-pos-btn:hover { color: #fbbf24; }
     #bottom-bar > * { white-space: nowrap; }   /* 좁은 화면에서 라벨이 두 줄로 꺾이지 않게 */
     /* 버튼이 늘어난 만큼 1024px(XGA 프로젝터)에서도 한 줄에 들어가게 간격·여백 축소.
-       💾 저장 후 닫기는 Client ID와 무관하게 늘 있으므로 drive-on 조건 없이 적용한다. */
+       💾 위치 저장 후 닫기는 Client ID와 무관하게 늘 있으므로 drive-on 조건 없이 적용한다. */
     @media (max-width: 1140px) {
       #bottom-bar { gap: 8px; }
       #close-pdf-btn { margin-left: 8px; }
@@ -997,6 +999,8 @@
   <div id="idle-lower">
     <!-- Google 드라이브 연결 상태 — GOOGLE_CLIENT_ID가 비어 있으면 CSS로 숨김 -->
     <div id="drive-bar">
+      <!-- 미연결 표시 — 연결 전에는 올리기·업데이트가 비활성이라는 것을 분명히 알린다 -->
+      <span id="drive-off">☁ 연결 안 됨</span>
       <button class="drive-btn" id="drive-connect-btn"
               title="다른 PC에서 드라이브에 저장한 강의·진도 불러오기">☁ Google 드라이브 연결</button>
       <span id="drive-user" hidden></span>
@@ -1127,13 +1131,13 @@
     <button id="save-png-btn">💾 PNG 저장</button>
     <button id="download-pdf-btn" title="현재 페이지가 속한 PDF 다운로드">⬇️ PDF 저장</button>
     <button id="save-pos-btn" title="현재 파일과 페이지를 이름 붙여 저장 — 드라이브 연동 강의는 드라이브에도 저장">📌 위치 저장</button>
-    <button id="save-close-btn" title="이름을 묻지 않고 현재 페이지를 저장한 뒤 닫기 — 드라이브 연동 강의는 드라이브에도 저장">💾 저장 후 닫기</button>
+    <button id="save-close-btn" title="이름을 묻지 않고 현재 페이지(위치)를 저장한 뒤 닫기 — 드라이브 연동 강의는 드라이브에도 저장">💾 위치 저장 후 닫기</button>
     <button id="close-pdf-btn" title="현재 PDF를 닫고 시작 화면으로 (주석도 함께 삭제)">✕ 닫기</button>
   </div>
 </div>
 
 <!-- 드라이브 같은 이름 파일 충돌 — 목록의 ☁ 올리기에서만 뜬다
-     (📌·저장 후 닫기는 이미 연동된 같은 fileId만 갱신하므로 이름이 겹칠 일이 없다) -->
+     (📌·위치 저장 후 닫기는 이미 연동된 같은 fileId만 갱신하므로 이름이 겹칠 일이 없다) -->
 <div id="drive-conflict-modal" role="dialog" aria-modal="true" aria-labelledby="drive-conflict-title">
   <div class="ppt-modal-box">
     <h2 id="drive-conflict-title">드라이브에 같은 이름의 파일이 있습니다</h2>
@@ -1257,7 +1261,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-24.2';
+const APP_VERSION = '2026-09-24.3';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2767,7 +2771,7 @@ function closeDeck(keepToast = false) {
   idleScreen.classList.remove('hidden');
   RecentFiles.render();   // 방금 닫은 파일이 목록 맨 위 → 1클릭 재열기
 }
-// 💾 저장 후 닫기 — 이름을 묻지 않고 현재 위치를 저장(드라이브 연동이면 파일 자동 교체 포함)한 뒤 닫는다.
+// 💾 위치 저장 후 닫기 — 이름을 묻지 않고 현재 위치를 저장(드라이브 연동이면 파일 자동 교체 포함)한 뒤 닫는다.
 //   저장에 실패해도 닫되 안내 토스트는 남긴다(closeDeck(true)).
 async function saveAndClose() {
   if (!state.pdf) return;
@@ -3271,6 +3275,9 @@ function recentTimeLabel(t) {
 // "13/24페이지" — 전체 쪽수를 모르면(total 기록 이전에 저장된 항목) "13페이지"
 const pageText = (page, total) => Number.isInteger(total) && total > 0 ? `${page}/${total}페이지` : `${page}페이지`;
 
+// 드라이브 미연결 안내 — 연결 없이는 올리기·업데이트를 하지 않는다(로그인 창도 띄우지 않는다)
+const MSG_NO_DRIVE = 'Google 드라이브에 연결되지 않았습니다 — 첫 화면 위의 "☁ Google 드라이브 연결"을 먼저 누르세요.';
+
 const RecentFiles = {
   init() {
     const sel = $('list-sort');
@@ -3378,7 +3385,7 @@ const RecentFiles = {
     return (await this.savedLabel()) || names[0].replace(/\.[^.]+$/, '');
   },
 
-  // 💾 저장 후 닫기 / 닫기 모달의 "위치 저장하고 닫기" — 이름을 묻지 않는다.
+  // 💾 위치 저장 후 닫기 / 닫기 모달의 "위치 저장하고 닫기" — 이름을 묻지 않는다.
   //   드라이브 연동 덱이면 _pushDrive가 이 PC 파일이 더 최신일 때 드라이브 파일도 교체한다(34번).
   //   okMsg: 성공 토스트 문구를 바꾼다. 실패 안내 문구는 그대로 둔다.
   async saveOnClose(local, drive, okMsg = null) {
@@ -3594,6 +3601,7 @@ const RecentFiles = {
   // ☁ 올리기 — 드라이브에 없는 강의를 이 PC 파일로 올린다(덱을 열지 않는다)
   uploadRow(row) {
     if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
+    if (!Drive.isConnected()) { showToast(MSG_NO_DRIVE, true, 5000); return; }   // 연결 없이는 올리지 않는다
     Drive.ensure(() => Drive.exclusive(() => Drive.uploadRow(row)),
                  hint => showToast('드라이브에 올리지 못했습니다 — 드라이브에 로그인해야 올릴 수 있습니다.'
                                   + (hint ? ` (${hint})` : ''), true, 5000));
@@ -3695,7 +3703,7 @@ const RecentFiles = {
     if (!rows.length) {
       const empty = document.createElement('div');
       empty.className = 'recent-empty';
-      empty.textContent = '저장된 강의가 없습니다\n파일을 열고 📌 또는 💾 저장 후 닫기를 누르면 여기에 표시됩니다'
+      empty.textContent = '저장된 강의가 없습니다\n파일을 열고 📌 또는 💾 위치 저장 후 닫기를 누르면 여기에 표시됩니다'
         + (DRIVE_ON && !Drive.isConnected() ? '\n(Google 드라이브를 연결하면 다른 PC에 저장한 강의도 함께 보입니다)' : '');
       list.appendChild(empty);
       return;
@@ -3763,6 +3771,9 @@ const RecentFiles = {
   _cloudButton(row) {
     const b = row.drive
       ? this._actButton('☁', '드라이브에서 열기', 'has', () => this.openDrive(row))
+      // 미연결이면 올리기 자체를 막는다(연결 없이는 업로드·업데이트 없음)
+      : DRIVE_ON && !Drive.isConnected()
+        ? this._actButton('☁', 'Google 드라이브 연결 안 됨 — 위의 연결 버튼을 먼저 누르세요', '', null)
       : this.hasLocal(row)
         ? this._actButton('☁', '구글 드라이브에 올리기', 'on', () => this.uploadRow(row))
         : this._actButton('☁', '드라이브에 없습니다', '', null);
@@ -3775,6 +3786,7 @@ const RecentFiles = {
     const base = '이 PC의 최신 파일로 드라이브 업데이트';
     const up = this._actButton('⬆', base, '', () => {
       if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
+      if (!Drive.isConnected()) { showToast(MSG_NO_DRIVE, true, 5000); return; }   // 연결 없이는 갱신하지 않는다
       Drive.ensure(() => Drive.exclusive(() => Drive.updateFromLocal(row)),
                    hint => showToast('드라이브를 업데이트하지 못했습니다 — 드라이브에 로그인해야 올릴 수 있습니다.'
                                     + (hint ? ` (${hint})` : ''), true, 5000));
@@ -3971,6 +3983,7 @@ const Drive = {
     if (!DRIVE_ON) return;
     const on = this.isConnected();
     $('drive-connect-btn').hidden = on;
+    $('drive-off').hidden = on;   // 미연결 표시(올리기·업데이트 비활성 상태)
     for (const id of ['drive-user', 'drive-refresh-btn', 'drive-disconnect-btn', 'drive-note']) $(id).hidden = !on;
     $('drive-user').textContent = on ? '☁ ' + (this._email || 'Google 드라이브') : '';
     // 목록을 읽은 뒤에만 — 폴더 id가 이미 캐시돼 있어 추가 요청이 없다.
