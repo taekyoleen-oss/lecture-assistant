@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lecture Annotation Tool</title>
+  <title>Lecture Assistant</title>
   <!-- PDF.js CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- JetBrains Mono -->
@@ -180,6 +180,24 @@
       body.drive-on #idle-screen { --idle-reserve: 330px; }
     }
     #idle-screen.hidden { display: none; }
+
+    /* 첫 화면 왼쪽 위 앱 이름 — 글자가 하나씩 순서대로 깜박인다.
+       position: fixed라 가운데 정렬 흐름 밖이어서 --idle-reserve 계산에 영향을 주지 않는다. */
+    #app-title {
+      position: fixed; top: 16px; left: 20px;
+      font-size: 15px; font-weight: 700; letter-spacing: 0.14em;
+      color: var(--text-muted);
+      user-select: none; pointer-events: none;
+      white-space: pre;   /* 글자 사이 공백 유지 */
+    }
+    #app-title span { animation: titleBlink 2.6s linear infinite; }
+    @keyframes titleBlink {
+      0%, 62%, 100% { opacity: 0.3; }
+      12%           { opacity: 1; }
+    }
+    /* 좁은 화면에서는 드롭존과 겹칠 수 있어 숨긴다 */
+    @media (max-width: 780px) { #app-title { display: none; } }
+    @media (prefers-reduced-motion: reduce) { #app-title span { animation: none; opacity: 0.85; } }
 
     #drop-zone {
       flex: 0 0 auto;   /* 낮은 뷰포트에서 찌그러지지 말고 부모가 스크롤되게 */
@@ -968,6 +986,7 @@
 
 <!-- ── IDLE Screen ──────────────────────────────────── -->
 <div id="idle-screen">
+  <div id="app-title" role="img" aria-label="Lecture Assistant"></div>
   <div id="drop-zone">
     <div class="icon">📄</div>
     <div class="label">PDF 파일을 드래그하거나 클릭해서 선택하세요</div>
@@ -1238,7 +1257,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-24.1';
+const APP_VERSION = '2026-09-24.2';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -4872,6 +4891,13 @@ document.addEventListener('paste', e => {
 // Init
 // ══════════════════════════════════════════════════════════
 $('app-version').textContent = 'v' + APP_VERSION;
+// 첫 화면 앱 이름 — 글자 하나씩 순서대로 깜박이게(글자마다 시작 시각을 늦춘다)
+for (const [i, ch] of [...'Lecture Assistant'].entries()) {
+  const s = document.createElement('span');
+  s.textContent = ch;
+  s.style.animationDelay = (i * 0.1).toFixed(1) + 's';
+  $('app-title').appendChild(s);
+}
 FileHandler.init();
 Drive.init();          // GOOGLE_CLIENT_ID가 비어 있으면 아무것도 안 한다
 RecentFiles.init();
