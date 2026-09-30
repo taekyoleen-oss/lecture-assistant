@@ -331,8 +331,22 @@
     .recent-act:disabled { opacity: 0.22; cursor: default; }
     /* ☁ 올리기 강조는 행마다 반복되므로 채움 없이 테두리만 — 파란 덩어리로 보이지 않게,
        그리고 가끔만 나타나는 ⬆의 채움 강조와 구분되게 한다(36번 O-2). */
-    .recent-act[data-act="cloud"].on { background: transparent; border-color: rgba(59,130,246,0.5); }
+    .recent-act[data-act="cloud"].on { background: transparent; border-color: rgba(59,130,246,0.5); border-style: dashed; }
     .recent-act[data-act="cloud"].on:hover { background: rgba(59,130,246,0.12); border-color: #3B82F6; }
+    /* ☁ 두 상태를 모양으로도 구분 — 드라이브에 있음 = 초록 실선 + ✓ 배지, 없음(올리기) = 파란 점선 + + 배지.
+       ☁ 글자는 이모지로 그려져 color가 안 먹는 환경이 있어 배지로 구분한다. */
+    .recent-act[data-act="cloud"] { position: relative; }
+    .recent-act[data-act="cloud"].has { border-color: rgba(22,163,74,0.55); }
+    .recent-act[data-act="cloud"].has:hover { background: rgba(22,163,74,0.12); border-color: #16a34a; }
+    .recent-act[data-act="cloud"].has::after,
+    .recent-act[data-act="cloud"].on::after {
+      position: absolute; right: -4px; bottom: -4px;
+      width: 11px; height: 11px; border-radius: 50%;
+      font-size: 9px; font-weight: 700; line-height: 11px; text-align: center;
+      color: #fff; pointer-events: none;
+    }
+    .recent-act[data-act="cloud"].has::after { content: '✓'; background: #16a34a; }
+    .recent-act[data-act="cloud"].on::after  { content: '+'; background: #2563eb; }
 
     /* ── Google 드라이브 (GOOGLE_CLIENT_ID 설정 시 body.drive-on) ── */
     #drive-bar { display: none; }
@@ -3807,12 +3821,12 @@ const RecentFiles = {
   // ☁ 드라이브 — 있으면 열기, 없고 이 PC 파일이 있으면 올리기(강조), 둘 다 아니면 흐리게
   _cloudButton(row) {
     const b = row.drive
-      ? this._actButton('☁', '드라이브에서 열기', 'has', () => this.openDrive(row))
+      ? this._actButton('☁', '드라이브에 있음 — 드라이브에서 열기', 'has', () => this.openDrive(row))
       // 미연결이면 올리기 자체를 막는다(연결 없이는 업로드·업데이트 없음)
       : DRIVE_ON && !Drive.isConnected()
         ? this._actButton('☁', 'Google 드라이브 연결 안 됨 — 위의 연결 버튼을 먼저 누르세요', '', null)
       : this.hasLocal(row)
-        ? this._actButton('☁', '구글 드라이브에 올리기', 'on', () => this.uploadRow(row))
+        ? this._actButton('☁', '드라이브에 없음 — 구글 드라이브에 올리기', 'on', () => this.uploadRow(row))
         : this._actButton('☁', '드라이브에 없습니다', '', null);
     b.dataset.act = 'cloud';
     return b;
