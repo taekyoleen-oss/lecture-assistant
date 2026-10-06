@@ -282,6 +282,18 @@
       cursor: pointer;
     }
     .recent-item:last-child { border-bottom: none; }
+        .recent-item.dragging { opacity: 0.4; }
+    .recent-item.drop-above { box-shadow: inset 0 2px 0 #3B82F6; }
+    .recent-item.drop-below { box-shadow: inset 0 -2px 0 #3B82F6; }
+    /* ▲▼ 순서 이동 — 22px 높이 안에 11px 버튼 2개(행 높이 35px 유지) */
+    .recent-move { flex: 0 0 auto; display: flex; flex-direction: column; width: 16px; height: 22px; margin-left: -4px; }
+    .recent-move button {
+      flex: 1; padding: 0; border: none; border-radius: 3px;
+      background: transparent; color: var(--text-dim);
+      font-size: 10px; line-height: 1; opacity: 0.8; cursor: pointer;
+    }
+    .recent-move button:hover:not(:disabled) { background: var(--tool-hover); color: var(--text); opacity: 1; }
+    .recent-move button:disabled { opacity: 0.12; cursor: default; }
     .recent-item:hover { background: var(--surface2); }
     .recent-name {
       flex: 1; min-width: 0;
@@ -1047,6 +1059,7 @@
         <select id="list-sort" title="목록 정렬">
           <option value="date">날짜순</option>
           <option value="name">이름순</option>
+          <option value="custom">직접 정렬</option>
         </select>
       </div>
       <div id="recent-list"></div>
@@ -1287,7 +1300,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-09-24.5';
+const APP_VERSION = '2026-10-06.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -1304,7 +1317,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 // ══════════════════════════════════════════════════════════
 // AppState
 // ══════════════════════════════════════════════════════════
-const STORAGE_KEYS = { tool: 'lat_tool', color: 'lat_color', width: 'lat_width', sort: 'lat_sort' };
+const STORAGE_KEYS = { tool: 'lat_tool', color: 'lat_color', width: 'lat_width', sort: 'lat_sort', order: 'lat_order' };
 const COLOR_MAP = { red: '#FF3333', yellow: '#FFE033', lime: '#84CC16', blue: '#3B82F6' };
 
 // 이미지 stroke 렌더링 캐시: src(data URL) → HTMLImageElement
@@ -3334,7 +3347,7 @@ const RecentFiles = {
     const sel = $('list-sort');
     sel.value = this.sortMode();
     sel.addEventListener('change', () => {
-      localStorage.setItem(STORAGE_KEYS.sort, sel.value === 'name' ? 'name' : 'date');
+      localStorage.setItem(STORAGE_KEYS.sort, ['name', 'custom'].includes(sel.value) ? sel.value : 'date');
       this.render();
     });
     this.render();
@@ -3363,8 +3376,24 @@ const RecentFiles = {
   },
 
   // 정렬 — localStorage에 유지
-  sortMode() { return localStorage.getItem(STORAGE_KEYS.sort) === 'name' ? 'name' : 'date'; },
+  sortMode() {
+    const m = localStorage.getItem(STORAGE_KEYS.sort);
+    return m === 'name' || m === 'custom' ? m : 'date';
+  },
+  // 직접 정렬 순서(id 배열) — 이 브라우저의 localStorage에만 둔다
+  _order() {
+    try { const a = JSON.parse(localStorage.getItem(STORAGE_KEYS.order)); return Array.isArray(a) ? a : []; }
+    catch { return []; }
+  },
   _sort(rows) {
+    if (this.sortMode() === 'custom') {
+      // 순서에 없는 새 항목은 맨 위(최신순), 나머지는 저장된 순서대로
+      const idx = new Map(this._order().map((id, i) => [id, i]));
+      return rows.sort((x, y) => {
+        const a = idx.has(x.id) ? idx.get(x.id) : -1, b = idx.has(y.id) ? idx.get(y.id) : -1;
+        return a === -1 && b === -1 ? y.time - x.time : a - b;
+      });
+    }
     return this.sortMode() === 'name'
       ? rows.sort((x, y) => this.displayName(x).localeCompare(this.displayName(y), undefined, { numeric: true, sensitivity: 'base' }))
       : rows.sort((x, y) => y.time - x.time);
@@ -3726,6 +3755,18 @@ const RecentFiles = {
     this._paint($('recent-list'), this._sort([...rows.values()]));
   },
 
+  // 순서 변경 — 지금 보이는 순서에서 from 행을 to 자리로 옮기고 '직접 정렬'로 전환한다
+  //   (날짜순·이름순에서 옮겨도 보이던 순서를 그대로 출발점으로 삼는다)
+  reorder(ids, from, to) {
+    if (from === to || to < 0 || to >= ids.length) return;
+    const [id] = ids.splice(from, 1);
+    ids.splice(to, 0, id);
+    localStorage.setItem(STORAGE_KEYS.order, JSON.stringify(ids));
+    localStorage.setItem(STORAGE_KEYS.sort, 'custom');
+    $('list-sort').value = 'custom';
+    this.render();
+  },
+
   // 드라이브에서 온 이름·label은 전부 textContent로만 넣는다(XSS 방지).
   _paint(list, rows) {
     list.textContent = '';
@@ -3760,10 +3801,56 @@ const RecentFiles = {
       return;
     }
 
-    for (const row of rows) {
+    const ids = rows.map(r => r.id);
+    rows.forEach((row, i) => {
       const el = document.createElement('div');
       el.className = 'recent-item';
       el.title = row.names.join(', ');   // 어떤 파일인지 전체 이름
+
+      // ▲▼ 한 칸 이동 — 22px 상자를 위아래로 나눠 행 높이를 유지한다
+      const mv = document.createElement('span');
+      mv.className = 'recent-move';
+      for (const [icon, d, tip] of [['▲', -1, '위로 이동'], ['▼', 1, '아래로 이동']]) {
+        const b = document.createElement('button');
+        b.textContent = icon;
+        b.title = tip;
+        b.setAttribute('aria-label', tip);
+        b.disabled = i + d < 0 || i + d >= rows.length;
+        b.addEventListener('click', e => { e.stopPropagation(); this.reorder(ids.slice(), i, i + d); });
+        mv.appendChild(b);
+      }
+
+      // 마우스로 끌어서 순서 바꾸기(HTML5 드래그 — 터치 기기는 ▲▼를 쓴다)
+      el.draggable = true;
+      el.addEventListener('dragstart', e => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/x-lat-row', String(i));
+        el.classList.add('dragging');
+      });
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        list.querySelectorAll('.drop-above, .drop-below').forEach(x => x.classList.remove('drop-above', 'drop-below'));
+      });
+      el.addEventListener('dragover', e => {
+        if (!e.dataTransfer.types.includes('text/x-lat-row')) return;   // 파일 드롭 등은 무시
+        e.preventDefault();
+        e.stopPropagation();
+        const r = el.getBoundingClientRect(), below = e.clientY > r.top + r.height / 2;
+        el.classList.toggle('drop-below', below);
+        el.classList.toggle('drop-above', !below);
+      });
+      el.addEventListener('dragleave', () => el.classList.remove('drop-above', 'drop-below'));
+      el.addEventListener('drop', e => {
+        if (!e.dataTransfer.types.includes('text/x-lat-row')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const from = +e.dataTransfer.getData('text/x-lat-row');
+        const below = el.classList.contains('drop-below');
+        el.classList.remove('drop-above', 'drop-below');
+        let to = i + (below ? 1 : 0);
+        if (from < to) to--;   // 빠진 자리만큼 당겨진다
+        this.reorder(ids.slice(), from, to);
+      });
 
       const name = document.createElement('span');
       name.className = 'recent-name';
@@ -3782,7 +3869,7 @@ const RecentFiles = {
       del.setAttribute('aria-label', del.title);
       del.addEventListener('click', e => { e.stopPropagation(); this.removeRow(row); });
 
-      el.append(name, time, this._pcButton(row));
+      el.append(mv, name, time, this._pcButton(row));
       // 드라이브 기능이 없는 배포본(Client ID 미설정)에는 ☁·⬆를 만들지 않는다
       if (DRIVE_ON) {
         el.append(this._cloudButton(row));
@@ -3794,7 +3881,7 @@ const RecentFiles = {
       // 이름 영역(행 전체) 클릭 = 기본 열기. 아이콘 버튼은 stopPropagation(없음 상태는 disabled라 클릭이 안 뜬다)
       el.addEventListener('click', () => this.open(row));   // page 없으면 1페이지
       list.appendChild(el);
-    }
+    });
   },
 
   // 아이콘 버튼 공통 — 22px 상자, 행 클릭과 겹치지 않게 stopPropagation
@@ -4654,12 +4741,16 @@ const FileHandler = {
       this.load([...e.target.files]);
       fileInput.value = '';
     });
+    // 목록 행 끌기(순서 변경)는 파일 드롭이 아니다 — 드롭존이 반응하지 않게
+    const isRow = e => e.dataTransfer.types.includes('text/x-lat-row');
     dropZone.addEventListener('dragover', e => {
+      if (isRow(e)) return;
       e.preventDefault(); dropZone.classList.add('drag-over');
     });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
     dropZone.addEventListener('drop', e => {
       e.preventDefault(); dropZone.classList.remove('drag-over');
+      if (isRow(e)) return;
       this._loadDrop(e.dataTransfer);
     });
 
