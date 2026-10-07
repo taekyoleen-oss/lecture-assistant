@@ -1366,7 +1366,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-07.8';
+const APP_VERSION = '2026-10-07.9';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2525,8 +2525,6 @@ const EndTime = {
     for (const b of mins.children) b.addEventListener('click', () => {
       minEl.value = b.textContent; mins.hidden = true; this._paintState();
     });
-    // 시를 고르면 분 입력으로 넘어가 목록을 보여 준다
-    $('timer-end-hour').addEventListener('change', () => { if ($('timer-end-hour').value) minEl.focus(); });
     $('timer-end-clear').addEventListener('click', e => { e.preventDefault(); this.clear(); });
     this._drag();
     setInterval(() => this.tick(), 1000);
