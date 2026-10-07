@@ -195,6 +195,15 @@
       0%, 62%, 100% { opacity: 0.3; }
       12%           { opacity: 1; }
     }
+    #idle-timer-btn {
+      position: fixed; top: 14px; right: 16px;
+      font-family: inherit; font-size: 12px;
+      color: var(--text-muted); background: transparent;
+      border: 1px solid var(--border2); border-radius: 6px;
+      padding: 3px 10px; cursor: pointer;
+    }
+    #idle-timer-btn:hover { background: var(--tool-hover); color: var(--text); }
+    #idle-timer-btn.active { color: #3B82F6; border-color: #3B82F6; }
     /* 좁은 화면에서는 드롭존과 겹칠 수 있어 숨긴다 */
     @media (max-width: 780px) { #app-title { display: none; } }
     @media (prefers-reduced-motion: reduce) { #app-title span { animation: none; opacity: 0.85; } }
@@ -558,6 +567,8 @@
       user-select: none;
     }
     #lecture-timer.visible { display: flex; }
+    /* 첫 화면에서는 여는 버튼(오른쪽 위) 바로 아래에 띄운다 */
+    #idle-screen:not(.hidden) ~ #lecture-timer { top: 46px; left: auto; right: 16px; }
     #timer-end { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
     #timer-end select, #timer-end input {
       font-family: inherit; font-size: 12px;
@@ -568,7 +579,7 @@
     #timer-end button {
       width: 22px; height: 22px; padding: 0;
       background: transparent; border: none; border-radius: 6px;
-      color: var(--text-dim); font-size: 11px; cursor: pointer;
+      color: var(--text-dim); font-size: 15px; cursor: pointer;
     }
     #timer-end button:hover { background: var(--tool-hover); color: var(--text); }
     #timer-end-hint { font-size: 11px; color: var(--text-dim); }
@@ -1035,6 +1046,8 @@
 <!-- ── IDLE Screen ──────────────────────────────────── -->
 <div id="idle-screen">
   <div id="app-title" role="img" aria-label="Lecture Assistant"></div>
+  <!-- 첫 화면에서도 마치는 시각을 설정·닫을 수 있게(오른쪽 툴바는 파일을 연 뒤에만 보인다) -->
+  <button id="idle-timer-btn" title="마치는 시각 타이머 (T) — 5분 전부터 남은 시간 표시">⏱ 마치는 시각</button>
   <div id="drop-zone">
     <div class="icon">📄</div>
     <div class="label">PDF 파일을 드래그하거나 클릭해서 선택하세요</div>
@@ -1306,7 +1319,7 @@
     </select>
     <input id="timer-end-min" list="timer-end-mins" inputmode="numeric" maxlength="2" placeholder="분" aria-label="분 (직접 입력 가능)">
     <datalist id="timer-end-mins"><option value="00"><option value="15"><option value="30"><option value="45"></datalist>
-    <button id="timer-end-clear" type="button" title="마치는 시각 지우기" aria-label="마치는 시각 지우기">✕</button>
+    <button id="timer-end-clear" type="button" title="리셋 — 마치는 시각 지우기" aria-label="리셋 — 마치는 시각 지우기">↺</button>
   </div>
   <div id="timer-end-hint"></div>
 </div>
@@ -1316,7 +1329,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-07.3';
+const APP_VERSION = '2026-10-07.4';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2334,6 +2347,7 @@ const EndTime = {
     const hm = t => { const d = new Date(t), h = d.getHours(); return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}`; };
     $('timer-end-hint').textContent = this.at ? `${hm(this.at - this.WARN)}부터 남은 시간 표시` : '';
     $('timer-btn').classList.toggle('active', !!this.at);
+    $('idle-timer-btn').classList.toggle('active', !!this.at);
     const show = !!this.at && left <= this.WARN;
     el.classList.toggle('show', show);
     if (!show) return;
@@ -2349,6 +2363,12 @@ const EndTime = {
       this.fill(saved);
     } else localStorage.removeItem(this.KEY);
     $('timer-btn').addEventListener('click', () => this.toggle());
+    $('idle-timer-btn').addEventListener('click', () => this.toggle());
+    // 창 바깥을 누르면 닫는다(열기 버튼은 자기 클릭으로 토글하므로 제외)
+    document.addEventListener('pointerdown', e => {
+      if ($('lecture-timer').classList.contains('visible')
+          && !e.target.closest('#lecture-timer, #timer-btn, #idle-timer-btn')) this.toggle();
+    });
     for (const id of ['timer-end-ampm', 'timer-end-hour', 'timer-end-min']) {
       $(id).addEventListener('change', () => this.apply());
       // 입력 중 Enter·Esc = 창 닫기(전역 단축키는 입력란에서 무시되므로 여기서 처리)
