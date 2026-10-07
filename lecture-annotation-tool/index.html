@@ -567,8 +567,10 @@
       user-select: none;
     }
     #lecture-timer.visible { display: flex; }
-    /* 첫 화면에서는 여는 버튼(오른쪽 위) 바로 아래에 띄운다 */
-    #idle-screen:not(.hidden) ~ #lecture-timer { top: 46px; left: auto; right: 16px; }
+    /* 첫 화면·파일 화면 같은 자리. 빈 곳을 끌어 옮길 수 있다(위치는 lat_timer_pos에 유지) */
+    #lecture-timer { cursor: move; touch-action: none; }
+    #lecture-timer select, #lecture-timer input, #lecture-timer button { cursor: pointer; }
+    #lecture-timer input { cursor: text; }
     #timer-end { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
     #timer-end select, #timer-end input {
       font-family: inherit; font-size: 12px;
@@ -1344,7 +1346,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-07.5';
+const APP_VERSION = '2026-10-07.6';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2344,6 +2346,7 @@ const EndTime = {
     if (open) {
       // 비어 있으면 오전/오후를 지금 기준으로 맞춰 둔다
       if (!this.at) $('timer-end-ampm').value = new Date().getHours() < 12 ? 'am' : 'pm';
+      this._clamp();   // 기억한 위치가 지금 창 밖이면 안으로
       $('timer-end-hour').focus();
     } else document.activeElement.blur();
   },
@@ -2370,6 +2373,38 @@ const EndTime = {
     const t = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     el.classList.toggle('over', left <= 0);
     el.textContent = left > 0 ? `남은 시간 ${t}` : `종료 +${t}`;
+  },
+  // 설정 창 끌어서 옮기기 — 입력·버튼이 아닌 빈 곳을 잡는다. 화면 밖으로 나가지 않게 가두고, 위치를 기억한다
+  _drag() {
+    const box = $('lecture-timer'), POS = 'lat_timer_pos';
+    const place = this._place = (x, y) => {
+      x = Math.max(0, Math.min(x, innerWidth  - box.offsetWidth));
+      y = Math.max(0, Math.min(y, innerHeight - box.offsetHeight));
+      box.style.left = x + 'px'; box.style.top = y + 'px';
+      return { x, y };
+    };
+    try {
+      const p = JSON.parse(localStorage.getItem(POS));
+      if (p) { box.style.left = p.x + 'px'; box.style.top = p.y + 'px'; }
+    } catch {}
+    box.addEventListener('pointerdown', e => {
+      if (e.target.closest('select, input, button')) return;
+      e.preventDefault();
+      const r = box.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+      box.setPointerCapture(e.pointerId);
+      const move = ev => place(ev.clientX - dx, ev.clientY - dy);
+      box.addEventListener('pointermove', move);
+      box.addEventListener('pointerup', ev => {
+        box.removeEventListener('pointermove', move);
+        localStorage.setItem(POS, JSON.stringify(place(ev.clientX - dx, ev.clientY - dy)));
+      }, { once: true });
+    });
+    // 창 크기가 바뀌어(전체보기 등) 화면 밖에 남지 않게 다시 가둔다
+    addEventListener('resize', () => this._clamp());
+  },
+  _clamp() {
+    const box = $('lecture-timer');
+    if (box.style.left && box.offsetWidth) this._place(parseFloat(box.style.left), parseFloat(box.style.top));
   },
   init() {
     const saved = +localStorage.getItem(this.KEY);
@@ -2404,6 +2439,7 @@ const EndTime = {
     // 시를 고르면 분 입력으로 넘어가 목록을 보여 준다
     $('timer-end-hour').addEventListener('change', () => { if ($('timer-end-hour').value) minEl.focus(); });
     $('timer-end-clear').addEventListener('click', e => { e.preventDefault(); this.clear(); });
+    this._drag();
     setInterval(() => this.tick(), 1000);
     this.tick();
   },
