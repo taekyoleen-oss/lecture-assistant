@@ -576,6 +576,18 @@
       border: 1px solid var(--border); border-radius: 6px; padding: 2px 4px;
     }
     #timer-end-min { width: 46px; text-align: center; }
+    #timer-end-minbox { position: relative; }
+    #timer-end-mins {
+      position: absolute; top: calc(100% + 2px); left: 0; z-index: 1;
+      display: flex; flex-direction: column; width: 46px;
+      background: var(--surface); border: 1px solid var(--border2); border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.18); overflow: hidden;
+    }
+    #timer-end-mins[hidden] { display: none; }
+    #timer-end #timer-end-mins button {
+      width: auto; height: 24px; border-radius: 0;
+      font-family: inherit; font-size: 12px; color: var(--text);
+    }
     #timer-end button {
       width: 22px; height: 22px; padding: 0;
       background: transparent; border: none; border-radius: 6px;
@@ -1317,8 +1329,11 @@
       <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option>
       <option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
     </select>
-    <input id="timer-end-min" list="timer-end-mins" inputmode="numeric" maxlength="2" placeholder="분" aria-label="분 (직접 입력 가능)">
-    <datalist id="timer-end-mins"><option value="00"><option value="15"><option value="30"><option value="45"></datalist>
+    <!-- 분 — 15분 단위 목록(직접 만든 목록: 브라우저 datalist는 입력값으로 걸러져 00만 보였다) + 직접 입력 -->
+    <span id="timer-end-minbox">
+      <input id="timer-end-min" inputmode="numeric" maxlength="2" placeholder="분" autocomplete="off" aria-label="분 (직접 입력 가능)">
+      <span id="timer-end-mins" hidden><button type="button">00</button><button type="button">15</button><button type="button">30</button><button type="button">45</button></span>
+    </span>
     <button id="timer-end-clear" type="button" title="리셋 — 마치는 시각 지우기" aria-label="리셋 — 마치는 시각 지우기">↺</button>
   </div>
   <div id="timer-end-hint"></div>
@@ -1329,7 +1344,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-07.4';
+const APP_VERSION = '2026-10-07.5';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2364,9 +2379,10 @@ const EndTime = {
     } else localStorage.removeItem(this.KEY);
     $('timer-btn').addEventListener('click', () => this.toggle());
     $('idle-timer-btn').addEventListener('click', () => this.toggle());
-    // 창 바깥을 누르면 닫는다(열기 버튼은 자기 클릭으로 토글하므로 제외)
+    // 파일 화면에서는 창 바깥을 누르면 닫는다(열기 버튼은 자기 클릭으로 토글하므로 제외).
+    // 첫 화면에서는 "⏱ 마치는 시각" 버튼으로만 열고 닫는다.
     document.addEventListener('pointerdown', e => {
-      if ($('lecture-timer').classList.contains('visible')
+      if ($('lecture-timer').classList.contains('visible') && idleScreen.classList.contains('hidden')
           && !e.target.closest('#lecture-timer, #timer-btn, #idle-timer-btn')) this.toggle();
     });
     for (const id of ['timer-end-ampm', 'timer-end-hour', 'timer-end-min']) {
@@ -2376,6 +2392,17 @@ const EndTime = {
         if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); this.apply(); this.toggle(); }
       });
     }
+    // 분 목록 — 입력란에 포커스가 있는 동안 펼친다. 목록 누름이 포커스를 뺏지 않게 pointerdown 기본 동작을 막는다
+    const minEl = $('timer-end-min'), mins = $('timer-end-mins');
+    minEl.addEventListener('focus', () => { mins.hidden = false; });
+    minEl.addEventListener('click', () => { mins.hidden = false; });
+    minEl.addEventListener('blur',  () => { mins.hidden = true; });
+    mins.addEventListener('pointerdown', e => e.preventDefault());
+    for (const b of mins.children) b.addEventListener('click', () => {
+      minEl.value = b.textContent; mins.hidden = true; this.apply();
+    });
+    // 시를 고르면 분 입력으로 넘어가 목록을 보여 준다
+    $('timer-end-hour').addEventListener('change', () => { if ($('timer-end-hour').value) minEl.focus(); });
     $('timer-end-clear').addEventListener('click', e => { e.preventDefault(); this.clear(); });
     setInterval(() => this.tick(), 1000);
     this.tick();
