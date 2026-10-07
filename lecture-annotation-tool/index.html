@@ -581,6 +581,34 @@
     #timer-controls button:hover:not(:disabled) { background: var(--surface3); }
     #timer-controls button:disabled { opacity: 0.32; cursor: default; }
 
+    #timer-end { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
+    #timer-end input {
+      flex: 1; min-width: 0;
+      font-family: inherit; font-size: 12px;
+      color: var(--text); background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 6px; padding: 2px 4px;
+    }
+    #timer-end button {
+      width: 22px; height: 22px; padding: 0;
+      background: transparent; border: none; border-radius: 6px;
+      color: var(--text-dim); font-size: 11px; cursor: pointer;
+    }
+    #timer-end button:hover { background: var(--tool-hover); color: var(--text); }
+    /* 마치는 시각 5분 전부터 좌측 상단에 작게 — 청중 눈에 띄지 않게 #remain-counter와 같은 톤.
+       타이머 위젯(z 1500)이 열려 있으면 그 아래에 가려진다. */
+    #end-remain {
+      position: fixed; top: 10px; left: 12px;
+      z-index: 200;
+      font-size: 13px; font-variant-numeric: tabular-nums;
+      color: rgba(255,255,255,0.75);
+      background: rgba(0,0,0,0.40);
+      padding: 2px 8px; border-radius: 6px;
+      pointer-events: none;
+      display: none;
+    }
+    #end-remain.show { display: block; }
+    #end-remain.over { color: #FF6B6B; }
+
     /* ── 검은 / 흰 화면 오버레이 ───────────────────────────── */
     #blank-overlay {
       position: fixed; inset: 0;
@@ -1055,7 +1083,7 @@
          행마다 💻 이 PC / ☁ 드라이브(없으면 올리기) / ⬆ 업데이트 버튼.
          FSA 미지원 + Client ID 미설정이면 계속 hidden -->
     <div id="recent-section" class="hidden">
-      <div class="recent-title">저장된 강의
+      <div class="recent-title">저장된 파일
         <select id="list-sort" title="목록 정렬">
           <option value="date">날짜순</option>
           <option value="name">이름순</option>
@@ -1101,6 +1129,9 @@
 
     <!-- 종료 임박 페이지 카운터 (전체보기 · 남은 5페이지 이하) -->
     <div id="remain-counter"></div>
+
+    <!-- 마치는 시각까지 남은 시간 (5분 전부터) -->
+    <div id="end-remain"></div>
 
     <!-- Toolbar -->
     <div id="toolbar">
@@ -1293,6 +1324,11 @@
     <button id="timer-toggle" title="시작 / 일시정지">▶</button>
     <button id="timer-reset"  title="리셋">↺</button>
   </div>
+  <!-- 마치는 시각 — 5분 전부터 좌측 상단(#end-remain)에 남은 시간 표시 -->
+  <label id="timer-end" title="마치는 시각 — 5분 전부터 왼쪽 위에 남은 시간이 작게 표시됩니다">마치는 시각
+    <input id="timer-end-input" type="time">
+    <button id="timer-end-clear" type="button" title="마치는 시각 지우기" aria-label="마치는 시각 지우기">✕</button>
+  </label>
 </div>
 
 <!-- 검은 / 흰 화면 오버레이 (B / W) -->
@@ -1300,7 +1336,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-06.1';
+const APP_VERSION = '2026-10-07.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2327,6 +2363,57 @@ const Timer = {
     $('timer-minus') .addEventListener('click', () => this.adjust(-1));
     $('timer-plus')  .addEventListener('click', () => this.adjust(+1));
     this.render();
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// EndTime — 마치는 시각 5분 전부터 좌측 상단에 남은 시간(지나면 +초과 시간)
+// ══════════════════════════════════════════════════════════
+const EndTime = {
+  KEY: 'lat_end',
+  WARN: 5 * 60 * 1000,
+  at: 0,                   // 마치는 시각(ms). 0 = 없음
+
+  // "14:50" → 오늘 그 시각. 1시간 넘게 지난 시각이면 내일로 본다(자정 넘는 강의)
+  set(hhmm) {
+    if (!hhmm) return this.clear();
+    const [h, m] = hhmm.split(':').map(Number);
+    const d = new Date(); d.setHours(h, m, 0, 0);
+    if (d.getTime() < Date.now() - 3600000) d.setDate(d.getDate() + 1);
+    this.at = d.getTime();
+    localStorage.setItem(this.KEY, String(this.at));
+    this.tick();
+  },
+  clear() {
+    this.at = 0;
+    localStorage.removeItem(this.KEY);
+    $('timer-end-input').value = '';
+    this.tick();
+  },
+  tick() {
+    const el = $('end-remain');
+    const left = this.at - Date.now();
+    // 마친 뒤 30분이 지나면 저절로 끈다(다음 강의에 지난 시각이 남지 않게)
+    if (this.at && left < -30 * 60000) return this.clear();
+    const show = !!this.at && left <= this.WARN;
+    el.classList.toggle('show', show);
+    if (!show) return;
+    const s = Math.ceil(Math.abs(left) / 1000);
+    const t = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    el.classList.toggle('over', left <= 0);
+    el.textContent = left > 0 ? `남은 시간 ${t}` : `종료 +${t}`;
+  },
+  init() {
+    const saved = +localStorage.getItem(this.KEY);
+    if (saved > Date.now() - 30 * 60000) {
+      this.at = saved;
+      const d = new Date(saved);
+      $('timer-end-input').value = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    } else localStorage.removeItem(this.KEY);
+    $('timer-end-input').addEventListener('change', e => this.set(e.target.value));
+    $('timer-end-clear').addEventListener('click', e => { e.preventDefault(); this.clear(); });
+    setInterval(() => this.tick(), 1000);
+    this.tick();
   },
 };
 
@@ -3795,7 +3882,7 @@ const RecentFiles = {
     if (!rows.length) {
       const empty = document.createElement('div');
       empty.className = 'recent-empty';
-      empty.textContent = '저장된 강의가 없습니다\n파일을 열고 📌 또는 💾 위치 저장 후 닫기를 누르면 여기에 표시됩니다'
+      empty.textContent = '저장된 파일이 없습니다\n파일을 열고 📌 또는 💾 위치 저장 후 닫기를 누르면 여기에 표시됩니다'
         + (DRIVE_ON && !Drive.isConnected() ? '\n(Google 드라이브를 연결하면 다른 PC에 저장한 강의도 함께 보입니다)' : '');
       list.appendChild(empty);
       return;
@@ -5060,6 +5147,7 @@ PageScrollRail.init();
 KeyboardHandler.init();
 PptHandler.init();
 Timer.init();
+EndTime.init();
 
 // 실행취소 / 다시실행 버튼
 $('undo-btn').addEventListener('click', () => History.undo());
