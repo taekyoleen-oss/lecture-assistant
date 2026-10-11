@@ -948,7 +948,7 @@
     #toast.error { border-color: #ef4444; color: #f87171; }
 
     /* ── PPT Conversion Modal ──────────────────────────────── */
-    #ppt-modal, #drive-conflict-modal, #close-deck-modal {
+    #ppt-modal, #drive-conflict-modal {
       display: none;
       position: fixed; inset: 0;
       background: var(--modal-overlay);
@@ -956,15 +956,13 @@
       align-items: center;
       justify-content: center;
     }
-    #ppt-modal.visible, #drive-conflict-modal.visible, #close-deck-modal.visible { display: flex; }
+    #ppt-modal.visible, #drive-conflict-modal.visible { display: flex; }
     /* 드라이브 같은 이름 파일 충돌 — 파일별 한 줄, 덮어쓰기는 파괴적이라 빨강 hover */
     #drive-conflict-list { list-style: none; }
     #drive-conflict-list li + li { margin-top: 4px; }
     #drive-conflict-modal .conflict-help { font-size: 12px; margin: 16px 0 0; }
     #drive-conflict-modal [data-choice="overwrite"]:hover { color: #ef4444; border-color: #ef4444; background: rgba(239,68,68,0.08); }
     /* 닫기 모달 — 주석·보류를 버리는 쪽은 빨강 hover */
-    #close-deck-info { white-space: pre-line; }
-    #close-deck-modal [data-choice="close"]:hover { color: #ef4444; border-color: #ef4444; background: rgba(239,68,68,0.08); }
     .ppt-modal-box {
       background: var(--modal-bg);
       border: 1px solid var(--border);
@@ -1226,7 +1224,7 @@
     <button id="download-pdf-btn" title="현재 페이지가 속한 PDF 다운로드">⬇️ PDF 저장</button>
     <button id="save-pos-btn" title="현재 파일과 페이지를 이름 붙여 저장 — 드라이브 연동 강의는 드라이브에도 저장">📌 위치 저장</button>
     <button id="save-close-btn" title="이름을 묻지 않고 현재 페이지(위치)를 저장한 뒤 닫기 — 드라이브 연동 강의는 드라이브에도 저장">💾 위치 저장 후 닫기</button>
-    <button id="close-pdf-btn" title="현재 PDF를 닫고 시작 화면으로 (주석도 함께 삭제)">✕ 닫기</button>
+    <button id="close-pdf-btn" title="저장 없이 닫고 시작 화면으로 (위치·주석 저장 안 함)">✕ 닫기</button>
   </div>
 </div>
 
@@ -1246,19 +1244,6 @@
       <strong>덮어쓰기</strong> — 드라이브 파일을 이 PC의 파일로 바꿉니다. 이전 버전은 드라이브의 '버전 관리'에서 일정 기간 복원할 수 있습니다.<br>
       <strong>다른 이름으로 저장</strong> — 새 파일로 올리고 기존 드라이브 파일은 그대로 둡니다(목록에 별도 강의로 표시).
     </p>
-  </div>
-</div>
-
-<!-- ✕ 닫기 — 위치 저장 안내(주석 경고·드라이브 보류 안내를 한 창에 모은다) -->
-<div id="close-deck-modal" role="dialog" aria-modal="true" aria-labelledby="close-deck-title">
-  <div class="ppt-modal-box">
-    <h2 id="close-deck-title">강의를 닫을까요?</h2>
-    <p class="desc" id="close-deck-info"></p>
-    <div class="ppt-modal-actions">
-      <button class="ppt-action-btn primary"   id="close-deck-save" data-choice="save">위치 저장하고 닫기</button>
-      <button class="ppt-action-btn secondary" data-choice="close">저장 없이 닫기</button>
-      <button class="ppt-action-btn secondary" data-choice="cancel">취소</button>
-    </div>
   </div>
 </div>
 
@@ -1366,7 +1351,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-07.9';
+const APP_VERSION = '2026-10-11.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -1611,6 +1596,7 @@ const PDFRenderer = {
       loadingOverlay.classList.remove('visible');
       idleScreen.classList.add('hidden');
       appEl.classList.add('visible');
+      openDeckHistory();
       canvasQuietUntil = performance.now() + CANVAS_QUIET_MS;   // 목록 행 두 번째 클릭이 슬라이드에 닿지 않게
       if (!state._toolInited) { ToolController.init(); state._toolInited = true; }
 
@@ -2974,39 +2960,6 @@ function modalChoice(modal, focusSel) {
   });
 }
 
-// ✕ 닫기 — 위치를 저장할지 먼저 묻는다(주석 경고·드라이브 보류 안내도 이 창에 함께).
-//   저장할 곳이 없으면(핸들 없고 드라이브 연동도 아님) "위치 저장하고 닫기"는 숨긴다.
-async function askClose() {
-  if (!state.pdf) return;
-  if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
-  const local = HAS_FSA && !!state.handles;
-  const drive = DRIVE_ON && !!state.driveFileIds;
-  const annotated = Object.values(state.strokes).filter(a => a && a.length).length;
-
-  // 바뀐 것이 없으면 묻지도, 저장하지도 않고 바로 닫는다(34번 — 쓰기 0).
-  //   "바뀐 것 없음" = 주석 없음 + 드라이브 보류 없음 + (저장할 곳이 없거나 이미 같은 위치가 저장돼 있음).
-  //   주석이 있거나 위치가 달라졌으면 아래 모달로 묻는다.
-  if (!Drive.pendingSave && !annotated && (!(local || drive) || await RecentFiles.samePageSaved())) {
-    closeDeck();
-    return;
-  }
-
-  const label = await RecentFiles.savedLabel();
-  const lines = [`현재 ${state.currentPage} / ${state.totalPages} 페이지${label ? ` (${label})` : ''}`];
-  if (annotated) lines.push(`주석이 있는 페이지 ${annotated}개는 저장되지 않고 사라집니다.`);
-  if (Drive.pendingSave) lines.push('드라이브에 아직 반영하지 않은 위치가 있습니다.');
-  $('close-deck-info').textContent = lines.join('\n');
-  $('close-deck-save').hidden = !(local || drive);
-  const choice = await modalChoice($('close-deck-modal'), local || drive ? '[data-choice="save"]' : '[data-choice="close"]');
-  if (choice === 'cancel') return;
-  if (choice === 'save') {
-    await RecentFiles.saveOnClose(local, drive);
-    closeDeck(true);     // 방금 띄운 결과 토스트를 지우지 않는다
-    return;
-  }
-  closeDeck();
-}
-
 // 덱을 바로 닫는다(묻지 않음). keepToast: 닫기 직전에 띄운 안내를 그대로 둔다.
 function closeDeck(keepToast = false) {
   // 상태를 먼저 비운다 — 그래야 아래 exitPresentationMode의 재렌더가 state.pdf 검사에서
@@ -3032,6 +2985,8 @@ function closeDeck(keepToast = false) {
   downloadPdfBtn.classList.remove('visible');
   appEl.classList.remove('visible');
   idleScreen.classList.remove('hidden');
+  // 버튼으로 닫았으면 쌓아 둔 기록 칸을 되돌린다(뒤로가기로 닫은 경우엔 이미 빠져 있다)
+  if (history.state && history.state.lat === 'deck') history.back();
   RecentFiles.render();   // 방금 닫은 파일이 목록 맨 위 → 1클릭 재열기
 }
 // 💾 위치 저장 후 닫기 — 이름을 묻지 않고 현재 위치를 저장(드라이브 연동이면 파일 자동 교체 포함)한 뒤 닫는다.
@@ -3050,7 +3005,20 @@ async function saveAndClose() {
   closeDeck(true);
 }
 
-$('close-pdf-btn') .addEventListener('click', () => askClose());
+// ✕ 닫기 — 묻지 않고 저장 없이 바로 닫는다(위치를 남기려면 💾 위치 저장 후 닫기)
+$('close-pdf-btn') .addEventListener('click', () => {
+  if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
+  closeDeck();
+});
+
+// 휴대폰·브라우저 뒤로가기 = 저장 없이 닫기. 파일을 열 때 기록 한 칸을 쌓아 두고(openDeckHistory),
+// 뒤로가기로 그 칸이 빠지면(popstate) 덱을 닫는다 — 앱 밖 이전 페이지로 나가지 않게.
+function openDeckHistory() {
+  if (!(history.state && history.state.lat === 'deck')) history.pushState({ lat: 'deck' }, '');
+}
+addEventListener('popstate', () => {
+  if (state.pdf && !(history.state && history.state.lat === 'deck')) closeDeck();
+});
 $('save-pos-btn')  .addEventListener('click', () => RecentFiles.save());
 $('save-close-btn').addEventListener('click', () => saveAndClose());
 
@@ -5193,7 +5161,7 @@ document.addEventListener('paste', e => {
   // 앱이 로드된 상태에서만, input에 포커스된 상태는 제외
   if (!state.pdf || !appEl.classList.contains('visible')) return;
   if (e.target.tagName === 'INPUT') return;
-  if (document.querySelector('#drive-conflict-modal.visible, #ppt-modal.visible, #close-deck-modal.visible')) return;   // 모달 뒤 슬라이드에 붙지 않게
+  if (document.querySelector('#drive-conflict-modal.visible, #ppt-modal.visible')) return;   // 모달 뒤 슬라이드에 붙지 않게
 
   const items = e.clipboardData?.items;
   if (!items) return;
