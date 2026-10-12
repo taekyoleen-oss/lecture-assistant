@@ -948,7 +948,7 @@
     #toast.error { border-color: #ef4444; color: #f87171; }
 
     /* ── PPT Conversion Modal ──────────────────────────────── */
-    #ppt-modal, #drive-conflict-modal {
+    #ppt-modal, #drive-conflict-modal, #close-deck-modal {
       display: none;
       position: fixed; inset: 0;
       background: var(--modal-overlay);
@@ -956,7 +956,8 @@
       align-items: center;
       justify-content: center;
     }
-    #ppt-modal.visible, #drive-conflict-modal.visible { display: flex; }
+    #ppt-modal.visible, #drive-conflict-modal.visible, #close-deck-modal.visible { display: flex; }
+    #close-deck-info { white-space: pre-line; }
     /* 드라이브 같은 이름 파일 충돌 — 파일별 한 줄, 덮어쓰기는 파괴적이라 빨강 hover */
     #drive-conflict-list { list-style: none; }
     #drive-conflict-list li + li { margin-top: 4px; }
@@ -1123,6 +1124,17 @@
 </div>
 
 <!-- ── Loading Overlay ──────────────────────────────── -->
+<!-- ✕ 닫기 — 바뀐 것이 있을 때만 한 번 알린다(확인 = 저장 없이 닫기, Esc·바깥 클릭 = 취소) -->
+<div id="close-deck-modal" role="dialog" aria-modal="true" aria-labelledby="close-deck-title">
+  <div class="ppt-modal-box">
+    <h2 id="close-deck-title">저장하지 않고 닫습니다</h2>
+    <p class="desc" id="close-deck-info"></p>
+    <div class="ppt-modal-actions">
+      <button class="ppt-action-btn primary" data-choice="close">확인</button>
+    </div>
+  </div>
+</div>
+
 <div id="loading-overlay">
   <div class="spinner"></div>
   <p id="loading-text">PDF 로딩 중...</p>
@@ -1351,7 +1363,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-11.1';
+const APP_VERSION = '2026-10-12.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -3000,14 +3012,27 @@ async function saveAndClose() {
     showToast('브라우저 파일 선택 창으로 연 파일만 저장할 수 있습니다.', true);
     return;
   }
+  // 저장하는 동안 화면을 덮어 다른 버튼·단축키를 막는다(closeDeck이 덮개를 걷는다)
+  $('loading-text').textContent = '위치 저장 중... 잠시만 기다려 주세요';
+  loadingOverlay.classList.add('visible');
   // exclusive — 연타로 저장이 두 번 돌지 않게(두 번째 클릭은 위 busy 검사에서 걸린다)
-  await Drive.exclusive(() => RecentFiles.saveOnClose(local, drive));
-  closeDeck(true);
+  try { await Drive.exclusive(() => RecentFiles.saveOnClose(local, drive)); }
+  finally { closeDeck(true); }
 }
 
-// ✕ 닫기 — 묻지 않고 저장 없이 바로 닫는다(위치를 남기려면 💾 위치 저장 후 닫기)
-$('close-pdf-btn') .addEventListener('click', () => {
+// ✕ 닫기 — 저장 없이 닫는다. 페이지를 옮겼거나 주석이 있으면 "저장하지 않고 닫습니다" 확인 창을 한 번 띄운다
+//   (바뀐 것이 없으면 바로 닫는다). 위치를 남기려면 💾 위치 저장 후 닫기.
+$('close-pdf-btn') .addEventListener('click', async () => {
+  if (!state.pdf) return;
   if (Drive.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
+  const annotated = Object.values(state.strokes).filter(a => a && a.length).length;
+  const moved = (HAS_FSA && !!state.handles || DRIVE_ON && !!state.driveFileIds) && !(await RecentFiles.samePageSaved());
+  if (annotated || moved || Drive.pendingSave) {
+    const lines = [`현재 ${state.currentPage} / ${state.totalPages} 페이지 위치는 저장되지 않습니다.`];
+    if (annotated) lines.push(`주석이 있는 페이지 ${annotated}개도 함께 사라집니다.`);
+    $('close-deck-info').textContent = lines.join('\n');
+    if (await modalChoice($('close-deck-modal'), '[data-choice="close"]') !== 'close') return;
+  }
   closeDeck();
 });
 
@@ -3183,6 +3208,7 @@ const KeyboardHandler = {
       // 텍스트 input 포커스 중이면 내비게이션 무시 (input 자체에서 stopPropagation)
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (loadingOverlay.classList.contains('visible')) return;   // 로딩·저장 중에는 단축키를 막는다
       // 한글 IME가 켜져 있으면 e.key가 'ㄹ'·'ㅠ'·'ㅈ'·'ㅅ'로 들어와 글자 단축키가
       // 전부 죽는다(한국인 강사 기본 환경). 물리 키(e.code)에서 영문자를 복원해
       // switch 하나만 유지한다 — 분기를 늘리지 않으니 중복 실행 걱정이 없다.
@@ -5161,7 +5187,7 @@ document.addEventListener('paste', e => {
   // 앱이 로드된 상태에서만, input에 포커스된 상태는 제외
   if (!state.pdf || !appEl.classList.contains('visible')) return;
   if (e.target.tagName === 'INPUT') return;
-  if (document.querySelector('#drive-conflict-modal.visible, #ppt-modal.visible')) return;   // 모달 뒤 슬라이드에 붙지 않게
+  if (document.querySelector('#drive-conflict-modal.visible, #ppt-modal.visible, #close-deck-modal.visible')) return;   // 모달 뒤 슬라이드에 붙지 않게
 
   const items = e.clipboardData?.items;
   if (!items) return;
