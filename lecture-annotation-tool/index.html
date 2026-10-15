@@ -630,6 +630,8 @@
     }
     #end-remain.show { display: block; }
     #end-remain.over { color: #FF6B6B; }
+    /* 전체보기에서는 조금 크게(멀리서도 읽히게) */
+    body.presentation #end-remain { font-size: 18px; padding: 3px 11px; border-radius: 7px; }
 
     /* ── 검은 / 흰 화면 오버레이 ───────────────────────────── */
     #blank-overlay {
@@ -1363,7 +1365,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-12.1';
+const APP_VERSION = '2026-10-15.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
