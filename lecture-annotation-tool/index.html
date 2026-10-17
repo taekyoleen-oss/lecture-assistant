@@ -641,8 +641,8 @@
     body.html-deck #html-frame { display: block; }
     /* 도구를 해제하면(같은 도구 버튼 한 번 더) 클릭이 HTML 안의 버튼으로 간다 */
     body.html-deck.tool-none #draw-layer { pointer-events: none; }
-    /* iframe 내용은 그림으로 뜰 수 없다 — PNG 저장·영역 캡처, PDF 이어 붙이기는 숨긴다 */
-    body.html-deck #save-png-btn, body.html-deck #add-pdf-btn,
+    /* HTML에서는 영역 캡처·PDF 이어 붙이기를 숨긴다(PNG 저장은 HTML이 직접 그려 준다) */
+    body.html-deck #add-pdf-btn,
     body.html-deck .tool-btn[data-tool="screenshot"] { display: none; }
 
     /* ── 검은 / 흰 화면 오버레이 ───────────────────────────── */
@@ -1379,7 +1379,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-17.3';
+const APP_VERSION = '2026-10-17.4';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -3226,12 +3226,25 @@ function syncF11Presentation() {
 }
 fullscreenMQ.addEventListener('change', syncF11Presentation);
 
-savePngBtn.addEventListener('click', () => {
+savePngBtn.addEventListener('click', async () => {
   const off = document.createElement('canvas');
   off.width  = pdfCanvas.width;
   off.height = pdfCanvas.height;
   const ctx  = off.getContext('2d');
-  ctx.drawImage(pdfCanvas, 0, 0);
+  if (state.docs[0]?.html) {
+    // HTML 슬라이드 — 앱은 iframe 화면을 직접 찍을 수 없어 HTML 쪽에서 그림으로 만들어 받는다
+    $('loading-text').textContent = 'PNG 만드는 중...';
+    loadingOverlay.classList.add('visible');
+    try {
+      const img = new Image();
+      img.src = await HtmlView.snap(off.width, off.height);
+      await img.decode();
+      ctx.drawImage(img, 0, 0, off.width, off.height);
+    } catch (e) {
+      showToast('HTML 화면을 PNG로 만들지 못했습니다(인터넷 연결 필요): ' + e.message, true, 5000);
+      return;
+    } finally { loadingOverlay.classList.remove('visible'); }
+  } else ctx.drawImage(pdfCanvas, 0, 0);
   ctx.drawImage(drawCanvas, 0, 0);
   const a   = document.createElement('a');
   a.download = `slide-${state.currentPage}.png`;
@@ -5017,6 +5030,7 @@ function htmlBridge() {
     var d = e.data;
     if (e.source !== P || !d) return;
     if (d.lat === 'key') key(d.key, d.code, d.shift);
+    else if (d.lat === 'png') snap(d.w);
     else if (d.lat === 'go') {
       var n = Math.max(0, Math.min(d.n - 1, slides().length - 1));
       for (var g = 0; g < 999 && cur() !== n; g++) {
@@ -5027,6 +5041,26 @@ function htmlBridge() {
       last = cur();   // 앱이 옮긴 것 — 되돌려 알리지 않는다
     }
   });
+  // PNG 저장 — 지금 보이는 화면을 그림으로 만들어 앱에 넘긴다(처음 한 번 CDN에서 html-to-image를 받는다).
+  //   html2canvas는 복제용 iframe을 만드는데 sandbox 안에서는 그 iframe에 접근할 수 없어 못 쓴다.
+  function snap(w) {
+    function done(m) { P.postMessage(m, '*'); }
+    function go() {
+      var de = document.documentElement;
+      htmlToImage.toPng(de, {
+        width: innerWidth, height: innerHeight, pixelRatio: w / innerWidth, backgroundColor: '#ffffff',
+        // 안 보이는 쪽은 빼고 그린다(쪽이 많으면 느려진다)
+        filter: function (n) { return !(n.classList && n.classList.contains('slide') && !n.classList.contains('active')); },
+      }).then(function (u) { done({ lat: 'png', url: u }); },
+              function (e) { done({ lat: 'png', err: String(e && e.message || e) }); });
+    }
+    if (window.htmlToImage) return go();
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js';
+    s.onload = go;
+    s.onerror = function () { done({ lat: 'png', err: '그림 도구를 받지 못했습니다' }); };
+    document.head.appendChild(s);
+  }
   document.addEventListener('DOMContentLoaded', function () {
     new MutationObserver(report).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
     report();
@@ -5034,7 +5068,7 @@ function htmlBridge() {
 }
 
 const HtmlView = {
-  _frame: $('html-frame'), _wait: null,
+  _frame: $('html-frame'), _wait: null, _snap: null,
 
   isHtml(f) { return /\.html?$/i.test(f.name) || f.type === 'text/html'; },
 
@@ -5071,6 +5105,15 @@ const HtmlView = {
   },
   _send(m) { this._frame.contentWindow?.postMessage(m, '*'); },
 
+  // 지금 쪽을 w×h 그림(data URL)으로 — PNG 저장용
+  snap(w, h) {
+    return new Promise((res, rej) => {
+      const t = setTimeout(() => { this._snap = null; rej(new Error('시간 초과')); }, 30000);
+      this._snap = d => { clearTimeout(t); this._snap = null; d.url ? res(d.url) : rej(new Error(d.err)); };
+      this._send({ lat: 'png', w, h });
+    });
+  },
+
   // <head> 바로 뒤에 — doctype 앞에 넣으면 호환 모드로 바뀌어 화면이 달라진다
   _inject(text) {
     const tag = '<script>(' + htmlBridge + ')()<\/script>';
@@ -5093,6 +5136,7 @@ const HtmlView = {
       if (e.source !== this._frame.contentWindow || !d) return;
       if (d.lat === 'fs') togglePresentation();
       else if (d.lat === 'page') this._page(d);
+      else if (d.lat === 'png') this._snap?.(d);
       else if (d.lat === 'key') KeyboardHandler.handle({
         key: d.key, code: d.code, shiftKey: d.shift, ctrlKey: d.ctrl, metaKey: false,
         target: document.body, preventDefault() {},
