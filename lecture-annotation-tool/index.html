@@ -633,40 +633,17 @@
     /* 전체보기에서는 조금 크게(멀리서도 읽히게) */
     body.presentation #end-remain { font-size: 18px; padding: 3px 11px; border-radius: 7px; }
 
-    /* ── HTML 파일 보기 — 원본 HTML을 iframe에서 그대로 실행(모션·버튼·단축키 유지) ── */
-    #html-view {
-      position: fixed; inset: 0; z-index: 100;
-      display: none; flex-direction: column; background: #0f0f0f;
+    /* ── HTML 슬라이드 — PDF 캔버스 자리에 iframe(모션·버튼 그대로), 그 위에 주석 캔버스 ── */
+    #html-frame {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      border: 0; background: #fff; display: none;
     }
-    #html-view.open { display: flex; }
-    #html-bar {
-      flex: none; height: 36px; display: flex; align-items: center; gap: 6px;
-      padding: 0 10px; font-size: 12px; color: var(--text-muted);
-      background: var(--surface2); border-bottom: 1px solid var(--border);
-    }
-    /* 이름은 가운데 — 왼쪽 위는 남은 시간 표시 자리 */
-    #html-name { flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #html-bar button {
-      font-family: inherit; font-size: 12px; color: var(--text-muted);
-      background: transparent; border: 1px solid var(--border2); border-radius: 6px;
-      padding: 3px 9px; cursor: pointer; white-space: nowrap;
-    }
-    #html-bar button:hover { background: var(--tool-hover); color: var(--text); }
-    #html-bar button.on, #html-timer-btn.active { color: #3B82F6; border-color: #3B82F6; }
-    #html-stage { flex: 1; position: relative; min-height: 0; }
-    #html-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
-    /* 그리기 켜면 iframe 위 투명 캔버스가 입력을 받는다(끄면 클릭이 HTML로 그대로 간다) */
-    #html-draw { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
-    #html-draw.drawing { pointer-events: auto; cursor: crosshair; }
-    /* 전체보기 — 막대는 숨기고 맨 위 가장자리에 마우스를 대면 내려온다 */
-    #html-peek { display: none; position: absolute; top: 0; left: 0; right: 0; height: 6px; z-index: 3; }
-    body.presentation #html-peek { display: block; }
-    body.presentation #html-bar {
-      position: absolute; top: 0; left: 0; right: 0; z-index: 4;
-      transform: translateY(-100%); transition: transform .15s;
-    }
-    body.presentation #html-view.peek #html-bar { transform: none; }
-    @media (max-width: 600px) { #html-bar .wide { display: none; } }
+    body.html-deck #html-frame { display: block; }
+    /* 도구를 해제하면(같은 도구 버튼 한 번 더) 클릭이 HTML 안의 버튼으로 간다 */
+    body.html-deck.tool-none #draw-layer { pointer-events: none; }
+    /* iframe 내용은 그림으로 뜰 수 없다 — PNG 저장·영역 캡처, PDF 이어 붙이기는 숨긴다 */
+    body.html-deck #save-png-btn, body.html-deck #add-pdf-btn,
+    body.html-deck .tool-btn[data-tool="screenshot"] { display: none; }
 
     /* ── 검은 / 흰 화면 오버레이 ───────────────────────────── */
     #blank-overlay {
@@ -1177,24 +1154,6 @@
   <p id="loading-text">PDF 로딩 중...</p>
 </div>
 
-<!-- ── HTML 파일 보기 ─────────────────────────────────── -->
-<div id="html-view">
-  <div id="html-peek"></div>
-  <div id="html-bar">
-    <span id="html-name"></span>
-    <button id="html-draw-btn" title="그리기 켜기·끄기 — 끄면 그린 것이 지워집니다. 그리는 중에도 ← → 로 넘길 수 있습니다">✏ 그리기</button>
-    <button id="html-timer-btn" class="wide" title="마치는 시각 (T)">⏱</button>
-    <button id="html-present-btn" title="전체보기 (F)">⤢ 전체보기</button>
-    <button id="html-save-btn" class="wide" title="이 HTML 파일을 PC에 저장">⬇ 저장</button>
-    <button id="html-close-btn" title="닫기">✕ 닫기</button>
-  </div>
-  <div id="html-stage">
-    <iframe id="html-frame" title="HTML 파일"
-            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads"></iframe>
-    <canvas id="html-draw"></canvas>
-  </div>
-</div>
-
 <!-- ── PRESENTING App ────────────────────────────────── -->
 <div id="app">
   <div id="main-area">
@@ -1202,6 +1161,8 @@
     <!-- Canvas Area -->
     <div id="canvas-wrapper">
       <canvas id="pdf-layer"></canvas>
+      <iframe id="html-frame" title="HTML 슬라이드"
+              sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads"></iframe>
       <canvas id="draw-layer"></canvas>
       <canvas id="laser-layer"></canvas>
     </div>
@@ -1418,7 +1379,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-17.2';
+const APP_VERSION = '2026-10-17.3';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -1592,7 +1553,7 @@ const Deck = {
     let p = n;
     for (let d = 0; d < state.docs.length; d++) {
       const np = state.docs[d].numPages;
-      if (p <= np) return { pdf: state.docs[d].pdf, local: p, docIndex: d };
+      if (p <= np) return { pdf: state.docs[d].pdf, html: !!state.docs[d].html, local: p, docIndex: d };
       p -= np;
     }
     return null;
@@ -1617,6 +1578,7 @@ const PDFRenderer = {
   load(file) { return this.loadFiles([file], { append: false }); },
 
   async _addDoc(file) {
+    if (HtmlView.isHtml(file)) { state.docs.push(await HtmlView.load(file)); return; }
     const buf   = await file.arrayBuffer();
     const bytes = buf.slice(0);   // 다운로드용 원본 보존(getDocument가 버퍼를 점유할 수 있음)
     const pdf = await pdfjsLib.getDocument({
@@ -1635,7 +1597,13 @@ const PDFRenderer = {
     if (!files || !files.length) return;
     if (append && !Drive.pendingOk('PDF를 추가하면', '계속할까요?')) return false;
     if (!keepOrder) files = files.slice().sort(natCmp);   // 파일명 자연순(01,02,…)으로 정렬
-    $('loading-text').textContent = files.length > 1 ? `PDF ${files.length}개 불러오는 중...` : 'PDF 로딩 중...';
+    // HTML은 한 파일이 한 덱 — PDF와 섞거나 이어 붙이지 않는다
+    if ((append || files.length > 1) && files.some(f => HtmlView.isHtml(f))) {
+      showToast('HTML 파일은 하나씩만 열 수 있습니다(PDF와 함께 열 수 없음).', true);
+      return false;
+    }
+    $('loading-text').textContent = files.length > 1 ? `PDF ${files.length}개 불러오는 중...`
+                                         : HtmlView.isHtml(files[0]) ? 'HTML 로딩 중...' : 'PDF 로딩 중...';
     loadingOverlay.classList.add('visible');
     try {
       // 덱 구성이 바뀌면 보관 중인 핸들·드라이브 파일 id는 더 이상 이 덱을 설명하지 못한다.
@@ -1646,6 +1614,7 @@ const PDFRenderer = {
       state.driveConflict = false;
       Drive.pendingSave = null;   // 보류 중이던 드라이브 위치는 이전 덱의 것
       if (!append) {
+        HtmlView.reset();
         state.docs = [];
         state.renderedPages = {};
         StrokeStore.clearAll();
@@ -1666,6 +1635,11 @@ const PDFRenderer = {
       openDeckHistory();
       canvasQuietUntil = performance.now() + CANVAS_QUIET_MS;   // 목록 행 두 번째 클릭이 슬라이드에 닿지 않게
       if (!state._toolInited) { ToolController.init(); state._toolInited = true; }
+      // HTML은 도구 없이 시작 — 바로 HTML 안의 버튼을 누를 수 있게(저장된 도구 설정은 그대로)
+      if (state.docs[0].html) {
+        ToolController.clearTool(false);
+        showToast('HTML 슬라이드 — 도구를 고르면 그 위에 그리고, 같은 도구를 한 번 더 누르면 HTML 안을 클릭할 수 있습니다.', false, 5000);
+      } else if (!append) ToolController.applyTool(localStorage.getItem(STORAGE_KEYS.tool) || 'pen');   // HTML 뒤 PDF는 쓰던 도구로
 
       if (append) {
         showToast(`PDF ${files.length}개 추가 — 총 ${state.totalPages}페이지`);
@@ -1687,8 +1661,8 @@ const PDFRenderer = {
   async _renderPage(n) {
     const ref = Deck.ref(n);
     if (!ref) return null;
-    const page = await ref.pdf.getPage(ref.local);
-    const base = page.getViewport({ scale: 1 });
+    const page = ref.html ? null : await ref.pdf.getPage(ref.local);
+    const base = page ? page.getViewport({ scale: 1 }) : { width: 1280, height: 720 };   // HTML 슬라이드 = 16:9
     // 전체보기: 화면 전체 / 일반: UI 크롬 차감. 캐시 무효화용으로 렌더 시점 키를 함께 기록.
     const vk   = viewportKey();
     const pres = isPresenting();
@@ -1697,10 +1671,14 @@ const PDFRenderer = {
       (pres ? window.innerHeight : window.innerHeight - BOTTOM_BAR_PX)   / base.height
     );
     const q  = renderQuality();
-    const vp = page.getViewport({ scale: fit * q });
-    const tmp = document.createElement('canvas');
-    tmp.width = vp.width; tmp.height = vp.height;
-    await page.render({ canvasContext: tmp.getContext('2d'), viewport: vp }).promise;
+    const vp = page ? page.getViewport({ scale: fit * q })
+                    : { width: Math.floor(base.width * fit * q), height: Math.floor(base.height * fit * q) };
+    let tmp = null;   // HTML은 그릴 그림이 없다(iframe이 보여 준다)
+    if (page) {
+      tmp = document.createElement('canvas');
+      tmp.width = vp.width; tmp.height = vp.height;
+      await page.render({ canvasContext: tmp.getContext('2d'), viewport: vp }).promise;
+    }
     const rec = { canvas: tmp, width: vp.width, height: vp.height,
                   cssW: Math.round(vp.width / q), cssH: Math.round(vp.height / q), vpKey: vk };
     // 렌더 도중 모드/창 크기가 바뀌었으면 새 캐시를 오염시키지 않고 버린다
@@ -1754,7 +1732,8 @@ const PDFRenderer = {
     }
     laserTrail = [];
 
-    pdfCtx.drawImage(cached.canvas, 0, 0);
+    if (cached.canvas) pdfCtx.drawImage(cached.canvas, 0, 0);
+    else HtmlView.show(cached.cssW, cached.cssH, Deck.ref(pageNum).local);
     CanvasManager.redraw();
     updatePageUI();
     updateHistoryButtons();   // 페이지마다 히스토리가 따로이므로 버튼 상태도 갱신
@@ -1770,7 +1749,8 @@ function updateDownloadForPage(n) {
   if (!ref) return;
   const doc = state.docs[ref.docIndex];
   state.pdfBytes    = doc.bytes;
-  state.pdfFilename = doc.name.replace(/\.[^.]+$/, '') + '.pdf';
+  state.pdfFilename = doc.html ? doc.name : doc.name.replace(/\.[^.]+$/, '') + '.pdf';
+  downloadPdfBtn.textContent = doc.html ? '⬇️ HTML 저장' : '⬇️ PDF 저장';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1934,9 +1914,11 @@ const ToolController = {
   },
 
   // 도구 해제 — 어떤 도구도 활성화되지 않은 중립 상태(캔버스 클릭이 그리지 않음)
-  clearTool() {
+  // save=false: 이번 덱에서만 해제(HTML 열 때) — 다음에 여는 PDF는 쓰던 도구로
+  clearTool(save = true) {
     state.activeTool = 'none';
-    localStorage.setItem(STORAGE_KEYS.tool, 'none');
+    document.body.classList.add('tool-none');
+    if (save) localStorage.setItem(STORAGE_KEYS.tool, 'none');
     document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
     drawCanvas.style.cursor = 'default';
     stopLaser();
@@ -1946,6 +1928,7 @@ const ToolController = {
   applyTool(tool) {
     if (tool === 'none') return this.clearTool();
     state.activeTool = tool;
+    document.body.classList.remove('tool-none');
     localStorage.setItem(STORAGE_KEYS.tool, tool);
     document.querySelectorAll('.tool-btn').forEach(b => {
       if (b.dataset.tool) b.classList.toggle('active', b.dataset.tool === tool);
@@ -2495,7 +2478,6 @@ const EndTime = {
     this._paintState();
     $('timer-btn').classList.toggle('active', !!this.at);
     $('idle-timer-btn').classList.toggle('active', !!this.at);
-    $('html-timer-btn').classList.toggle('active', !!this.at);
     const show = !!this.at && left <= this.WARN;
     el.classList.toggle('show', show);
     if (!show) return;
@@ -2553,7 +2535,7 @@ const EndTime = {
     // 첫 화면에서는 "⏱ 마치는 시각" 버튼으로만 열고 닫는다.
     document.addEventListener('pointerdown', e => {
       if ($('lecture-timer').classList.contains('visible') && idleScreen.classList.contains('hidden')
-          && !e.target.closest('#lecture-timer, #timer-btn, #idle-timer-btn, #html-timer-btn')) this.toggle();
+          && !e.target.closest('#lecture-timer, #timer-btn, #idle-timer-btn')) this.toggle();
     });
     // 입력란을 바꾸는 것만으로는 적용하지 않는다 — ▶ 시작(또는 Enter)을 눌러야 시작
     for (const id of ['timer-end-ampm', 'timer-end-hour', 'timer-end-min']) {
@@ -3034,6 +3016,7 @@ function closeDeck(keepToast = false) {
   // 스스로 걸러진다(순서를 뒤집으면 뒤늦은 showPage가 currentPage를 되돌려 놓는다).
   SelectTool.deselect();
   stopLaser();
+  HtmlView.reset();
   state.docs = []; state.pdf = null; state.totalPages = 0; state.currentPage = 1;
   state.renderedPages = {};
   state.pdfBytes = null; state.pdfFilename = 'document.pdf';
@@ -3100,7 +3083,6 @@ function openDeckHistory() {
 addEventListener('popstate', () => {
   if (history.state && history.state.lat === 'deck') return;
   if (state.pdf) closeDeck();
-  if (HtmlView.isOpen()) HtmlView.close();
 });
 $('save-pos-btn')  .addEventListener('click', () => RecentFiles.save());
 $('save-close-btn').addEventListener('click', () => saveAndClose());
@@ -3262,11 +3244,19 @@ savePngBtn.addEventListener('click', () => {
 // ══════════════════════════════════════════════════════════
 const KeyboardHandler = {
   init() {
-    document.addEventListener('keydown', e => {
+    document.addEventListener('keydown', e => this.handle(e));
+
+    // 전체화면 변경 시 캔버스 리사이즈
+    document.addEventListener('fullscreenchange', () => {
+      if (state.pdf) PDFRenderer.showPage(state.currentPage);
+    });
+  },
+
+  // HTML 슬라이드 안에 포커스가 있을 때는 그 HTML이 키를 넘겨준다(HtmlView) — 같은 단축키가 그대로 듣는다
+  handle(e) {
       // 텍스트 input 포커스 중이면 내비게이션 무시 (input 자체에서 stopPropagation)
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (HtmlView.isOpen()) { HtmlView.key(e); return; }   // HTML 보기 — 키는 그 HTML로 넘긴다
       if (loadingOverlay.classList.contains('visible')) return;   // 로딩·저장 중에는 단축키를 막는다
       // 한글 IME가 켜져 있으면 e.key가 'ㄹ'·'ㅠ'·'ㅈ'·'ㅅ'로 들어와 글자 단축키가
       // 전부 죽는다(한국인 강사 기본 환경). 물리 키(e.code)에서 영문자를 복원해
@@ -3289,6 +3279,7 @@ const KeyboardHandler = {
           break;
         case 'Escape':
           if (blankMode) { setBlank(null); break; }       // 블랭크 먼저 해제
+          HtmlView.forward(e);                            // HTML의 열린 설명 창도 닫는다
           if (document.body.classList.contains('presentation')) {
             exitPresentationMode();
           } else {
@@ -3304,7 +3295,7 @@ const KeyboardHandler = {
         case '5': ToolController.toggleTool('text');      break;
         case '6': ToolController.toggleTool('highlight'); break;
         case '7': ToolController.toggleTool('eraser');     break;
-        case '8': ToolController.toggleTool('screenshot'); break;
+        case '8': if (!state.docs[0]?.html) ToolController.toggleTool('screenshot'); break;
         case '9': ToolController.toggleTool('select');     break;
         case '0': ToolController.toggleTool('laser');      break;
         case 'b': case 'B': setBlank('black'); e.preventDefault(); break;
@@ -3369,13 +3360,9 @@ const KeyboardHandler = {
         case 'Enter':
           if (state.pdf) { e.preventDefault(); goToPage(state.currentPage + 1); }
           break;
+        // 앱이 쓰지 않는 키(Space·Home·End·O 쪽 목록 등)는 HTML 슬라이드로
+        default: HtmlView.forward(e);
       }
-    });
-
-    // 전체화면 변경 시 캔버스 리사이즈
-    document.addEventListener('fullscreenchange', () => {
-      if (state.pdf) PDFRenderer.showPage(state.currentPage);
-    });
   },
 };
 
@@ -3384,7 +3371,7 @@ const KeyboardHandler = {
 // ══════════════════════════════════════════════════════════
 downloadPdfBtn.addEventListener('click', () => {
   if (!state.pdfBytes) return;
-  const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
+  const blob = new Blob([state.pdfBytes], { type: driveMime(state.pdfFilename) });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.download = state.pdfFilename;
@@ -3966,13 +3953,10 @@ const RecentFiles = {
         const f = got[at[i]];
         return f.name === n ? f : new File([f], n, { type: f.type, lastModified: f.lastModified });
       });
-      const html = HtmlView.isHtml(files[0]);
-      if (html ? await HtmlView.open(files[0]) : await PDFRenderer.loadFiles(files, { append: false, keepOrder: true })) {
-        if (!html) {
-          state.handles = at.map(k => entry.handles[k]);   // docs 순서 — 연 직후 바로 다시 위치 저장할 수 있게
-          Drive.link();                   // 드라이브 목록에도 있는 덱이면 📌가 드라이브에도 반영
-          goToPage(row.page || 1);        // 파일이 바뀌어 범위를 넘으면 goToPage가 클램프
-        }
+      if (await PDFRenderer.loadFiles(files, { append: false, keepOrder: true })) {
+        state.handles = at.map(k => entry.handles[k]);   // docs 순서 — 연 직후 바로 다시 위치 저장할 수 있게
+        Drive.link();                     // 드라이브 목록에도 있는 덱이면 📌가 드라이브에도 반영
+        goToPage(row.page || 1);          // 파일이 바뀌어 범위를 넘으면 goToPage가 클램프
         // 최근 연 파일은 열 때마다 맨 위로. 북마크의 time은 화면에 "저장 시각"으로
         // 표시되므로 건드리지 않는다(열었다고 갱신하면 표시가 거짓이 된다).
         if (entry.saved === false) {
@@ -4672,9 +4656,8 @@ const Drive = {
       //   이름도 새 파일명 기준으로 붙인다 — 이 PC 항목 label을 그대로 쓰면 목록에 똑같은 행이 둘 생긴다(36번 O-1).
       const names = newNames || docs.map(d => d.name);
       const label = (!newNames && e.label) || names[0].replace(/\.[^.]+$/, '');
-      const html  = HtmlView.isHtml({ name: names[0] });
-      const page  = html ? 0 : e.page || 1;   // HTML은 쪽 위치가 없다
-      const where = html ? '' : ` · ${pageText(page, e.total)}`;
+      const page  = e.page || 1;
+      const where = ` · ${pageText(page, e.total)}`;
       await this.update(list => this._upsert(list,
         { id: deckId(names), names, fileIds, label, page, total: e.total, time: Date.now(), saved: true }));
       loadingOverlay.classList.remove('visible');
@@ -4971,7 +4954,6 @@ const Drive = {
           this._progress(`드라이브에서 받는 중… ${Math.floor((i + f) / n * 100)}%`));
         files.push(new File([blob], e.names[i], { type: driveMime(e.names[i]) }));
       }
-      if (HtmlView.isHtml(files[0])) { loadingOverlay.classList.remove('visible'); await HtmlView.open(files[0]); return; }
       if (!(await PDFRenderer.loadFiles(files, { append: false, keepOrder: true }))) return;   // 오버레이·오류 안내는 loadFiles가
       state.driveFileIds = e.fileIds.slice();   // 항목 순서 그대로 연다 = docs 순서
       state.driveOpened = true;
@@ -4994,61 +4976,100 @@ const Drive = {
 };
 
 // ══════════════════════════════════════════════════════════
-// HtmlView — HTML 파일을 iframe에서 원본 그대로 실행(모션·버튼·단축키 유지)
+// HtmlView — HTML 슬라이드를 PDF 캔버스 자리의 iframe에서 원본 그대로 실행(모션·버튼 유지).
+// 쪽 = HTML의 .slide 요소(없으면 한 장). 주석·도구·쪽 이동·위치 저장은 PDF와 같은 길을 탄다.
 // sandbox(allow-same-origin 없음)라 그 HTML은 앱의 저장소·드라이브 연결에 손댈 수 없다.
 // ══════════════════════════════════════════════════════════
-// iframe 안에 끼워 넣는 연결 코드 — HTML의 전체화면 요청을 앱 전체보기로 돌리고(남은 시간이 보이게),
-// 앱이 넘겨주는 키를 그 HTML에 전달한다(그리기 중 ← → 넘기기)
+// iframe 안에 끼워 넣는 연결 코드 —
+//   · 전체화면 요청 → 앱 전체보기 · 키 → 앱으로 넘겨 같은 단축키가 듣게(앱이 안 쓰는 키는 되돌려 받는다)
+//   · 지금 쪽이 바뀌면(.slide.active) 앱에 알림 · 앱이 고른 쪽으로 이동
 function htmlBridge() {
-  var P = parent;
+  var P = parent, last = -2;
   function fs() { P.postMessage({ lat: 'fs' }, '*'); return Promise.resolve(); }
   Element.prototype.requestFullscreen = Element.prototype.webkitRequestFullscreen = fs;
   Document.prototype.exitFullscreen = Document.prototype.webkitExitFullscreen = fs;
+  function slides() { return document.querySelectorAll('.slide'); }
+  function cur() {
+    var a = slides();
+    for (var i = 0; i < a.length; i++) if (a[i].classList.contains('active')) return i;
+    return 0;
+  }
+  function report() {
+    var c = cur();
+    if (c === last) return;
+    last = c;
+    P.postMessage({ lat: 'page', cur: c, total: Math.max(1, slides().length) }, '*');
+  }
+  function key(k, code, shift) {
+    var ev = new KeyboardEvent('keydown', { key: k, code: code, shiftKey: !!shift, bubbles: true, cancelable: true });
+    ev.__lat = 1;   // 앱이 돌려준 키 — 아래에서 다시 넘기지 않는다
+    (document.body || document.documentElement).dispatchEvent(ev);
+  }
+  addEventListener('keydown', function (e) {
+    if (e.__lat || e.altKey || e.key === 'Tab') return;
+    var t = e.target;
+    if (t && t.matches && t.matches('input,textarea,select,[contenteditable]')) return;
+    if ((e.ctrlKey || e.metaKey) && !/^Key[ZY]$/.test(e.code)) return;   // 복사 등은 HTML 그대로
+    e.preventDefault(); e.stopImmediatePropagation();
+    P.postMessage({ lat: 'key', key: e.key, code: e.code, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }, '*');
+  }, true);
   addEventListener('message', function (e) {
     var d = e.data;
-    if (e.source !== P || !d || d.lat !== 'key') return;
-    (document.body || document.documentElement).dispatchEvent(new KeyboardEvent('keydown',
-      { key: d.key, code: d.code, shiftKey: d.shift, bubbles: true, cancelable: true }));
+    if (e.source !== P || !d) return;
+    if (d.lat === 'key') key(d.key, d.code, d.shift);
+    else if (d.lat === 'go') {
+      var n = Math.max(0, Math.min(d.n - 1, slides().length - 1));
+      for (var g = 0; g < 999 && cur() !== n; g++) {
+        var c = cur(), k = n > c ? 'ArrowRight' : 'ArrowLeft';
+        key(k, k);
+        if (cur() === c) break;   // 움직이지 않는다(쪽 목록이 열림 등) — 그만
+      }
+      last = cur();   // 앱이 옮긴 것 — 되돌려 알리지 않는다
+    }
+  });
+  document.addEventListener('DOMContentLoaded', function () {
+    new MutationObserver(report).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    report();
   });
 }
 
 const HtmlView = {
-  name: '', text: '',
-  _view: $('html-view'), _frame: $('html-frame'), _draw: $('html-draw'), _last: null,
+  _frame: $('html-frame'), _wait: null,
 
   isHtml(f) { return /\.html?$/i.test(f.name) || f.type === 'text/html'; },
-  isOpen() { return this._view.classList.contains('open'); },
 
-  // 성공하면 true
-  async open(file) {
-    if (state.pdf) { showToast('열린 PDF를 닫은 뒤 HTML 파일을 여세요.', true); return false; }
-    let text;
-    try { text = await file.text(); }
-    catch (e) { showToast('HTML 파일을 읽을 수 없습니다: ' + e.message, true); return false; }
-    this.name = file.name; this.text = text;
-    this._frame.addEventListener('load', () => this._frame.focus(), { once: true });
-    this._frame.srcdoc = this._inject(text);
-    $('html-name').textContent = file.name;
-    this._view.appendChild($('end-remain'));   // 남은 시간 표시를 이 화면 위로
-    idleScreen.classList.add('hidden');
-    this._view.classList.add('open');
-    this.setDraw(false);
-    openDeckHistory();                         // 뒤로가기 = 닫기
-    return true;
+  // 덱 문서 하나 — 쪽 수는 HTML이 처음 알려 줄 때까지 기다린다(못 받으면 한 장)
+  async load(file) {
+    const bytes = await file.arrayBuffer();
+    const text  = new TextDecoder().decode(bytes);
+    const total = await new Promise(res => {
+      const t = setTimeout(() => res(1), 8000);
+      this._wait = n => { clearTimeout(t); res(n); };
+      document.body.classList.add('html-deck');
+      this._frame.srcdoc = this._inject(text);
+    });
+    this._wait = null;
+    return { html: true, numPages: total, name: file.name, bytes };
   },
 
-  close() {
-    if (!this.isOpen()) return;
-    if (isPresenting()) exitPresentationMode();
-    this.setDraw(false);
-    this._view.classList.remove('open', 'peek');
-    this._frame.srcdoc = '';                   // 그 HTML의 스크립트·소리를 멈춘다
-    this.text = '';
-    $('main-area').appendChild($('end-remain'));
-    idleScreen.classList.remove('hidden');
-    if (history.state && history.state.lat === 'deck') history.back();
-    RecentFiles.render();                      // 방금 닫은 파일이 목록 맨 위 → 1클릭 재열기
+  // 덱을 닫거나 다른 파일을 열 때
+  reset() {
+    document.body.classList.remove('html-deck');
+    if (this._frame.srcdoc) this._frame.srcdoc = '';   // 그 HTML의 스크립트·소리를 멈춘다
   },
+
+  // showPage가 부른다 — 주석 캔버스와 같은 크기로 맞추고 n쪽으로
+  show(w, h, n) {
+    this._frame.style.width = w + 'px';
+    this._frame.style.height = h + 'px';
+    this._send({ lat: 'go', n });
+  },
+
+  // 앱이 쓰지 않는 키는 HTML로(Space·Home·End·O 쪽 목록 등)
+  forward(e) {
+    if (state.docs[0]?.html) this._send({ lat: 'key', key: e.key, code: e.code, shift: e.shiftKey });
+  },
+  _send(m) { this._frame.contentWindow?.postMessage(m, '*'); },
 
   // <head> 바로 뒤에 — doctype 앞에 넣으면 호환 모드로 바뀌어 화면이 달라진다
   _inject(text) {
@@ -5057,82 +5078,26 @@ const HtmlView = {
     return m ? text.slice(0, m.index + m[0].length) + tag + text.slice(m.index + m[0].length) : tag + text;
   },
 
-  save() {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([this.text], { type: 'text/html' }));
-    a.download = this.name || 'page.html';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  },
-
-  // 그리기: 켜면 투명 캔버스가 입력을 받고, 끄면 지운 뒤 클릭을 HTML로 돌려준다
-  setDraw(on) {
-    const c = this._draw;
-    c.classList.toggle('drawing', on);
-    $('html-draw-btn').classList.toggle('on', on);
-    if (on) this._fit(); else c.getContext('2d').clearRect(0, 0, c.width, c.height);
-  },
-  _fit() {
-    const c = this._draw, r = c.getBoundingClientRect(), q = window.devicePixelRatio || 1;
-    c.width = Math.round(r.width * q); c.height = Math.round(r.height * q);
-  },
-  _pt(e) {
-    const r = this._draw.getBoundingClientRect(), q = this._draw.width / (r.width || 1);
-    return { x: (e.clientX - r.left) * q, y: (e.clientY - r.top) * q };
-  },
-  _line(a, b) {
-    const ctx = this._draw.getContext('2d');
-    ctx.strokeStyle = COLOR_MAP[state.activeColor] || state.activeColor;
-    ctx.lineWidth = state.lineWidth * (window.devicePixelRatio || 1);
-    ctx.lineCap = ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-  },
-
-  // 앱 쪽에 포커스가 있을 때(그리기 중·막대 버튼 클릭 뒤)의 키
-  key(e) {
-    const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : e.key;
-    if (k === 'f' || k === 'F11') { e.preventDefault(); togglePresentation(); return; }
-    if (k === 't') { EndTime.toggle(); return; }
-    if (k === 'Escape' && this._draw.classList.contains('drawing')) { this.setDraw(false); return; }
-    if (k === 'Escape' && isPresenting()) { exitPresentationMode(); return; }
-    // 쪽을 넘기는 키면 그린 것을 지운다(그리기는 켠 채로)
-    if (/^(Arrow|Page|Home|End|Enter|Backspace| )/.test(e.key)) {
-      e.preventDefault();
-      const c = this._draw; c.getContext('2d').clearRect(0, 0, c.width, c.height);
-    }
-    this._frame.contentWindow.postMessage({ lat: 'key', key: e.key, code: e.code, shift: e.shiftKey }, '*');
+  // HTML 안에서 쪽이 바뀌면(Space·쪽 목록·링크·밀기) 주석도 그 쪽으로
+  _page(d) {
+    if (this._wait) { this._wait(d.total); return; }
+    const doc = state.docs[0];
+    if (!doc || !doc.html) return;
+    if (d.total !== doc.numPages) { doc.numPages = d.total; Deck.recount(); updatePageUI(); }
+    if (d.cur + 1 !== state.currentPage) goToPage(d.cur + 1);
   },
 
   init() {
-    const bar = (id, fn) => $(id).addEventListener('click', e => {
-      fn();
-      // 버튼에 포커스가 남으면 Space·Enter가 버튼을 다시 누른다 — 그리기 중엔 앱이, 아니면 HTML이 키를 받게
-      if (this._draw.classList.contains('drawing')) e.currentTarget.blur(); else if (id !== 'html-timer-btn') this._frame.focus();
-    });
-    bar('html-draw-btn',    () => this.setDraw(!this._draw.classList.contains('drawing')));
-    bar('html-timer-btn',   () => EndTime.toggle());
-    bar('html-present-btn', () => togglePresentation());
-    bar('html-save-btn',    () => this.save());
-    $('html-close-btn').addEventListener('click', () => this.close());
-    $('html-peek').addEventListener('mouseenter', () => this._view.classList.add('peek'));
-    $('html-bar').addEventListener('mouseleave', () => this._view.classList.remove('peek'));
-    document.addEventListener('fullscreenchange', () => {
-      $('html-present-btn').textContent = isPresenting() ? '✕ 전체보기 종료' : '⤢ 전체보기';
-    });
     addEventListener('message', e => {
-      if (e.source === this._frame.contentWindow && e.data && e.data.lat === 'fs') togglePresentation();
+      const d = e.data;
+      if (e.source !== this._frame.contentWindow || !d) return;
+      if (d.lat === 'fs') togglePresentation();
+      else if (d.lat === 'page') this._page(d);
+      else if (d.lat === 'key') KeyboardHandler.handle({
+        key: d.key, code: d.code, shiftKey: d.shift, ctrlKey: d.ctrl, metaKey: false,
+        target: document.body, preventDefault() {},
+      });
     });
-    addEventListener('resize', () => { if (this._draw.classList.contains('drawing')) this._fit(); });   // 크기가 바뀌면 그린 것은 지워진다
-
-    const c = this._draw;
-    c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); this._last = this._pt(e); this._line(this._last, this._last); });
-    c.addEventListener('pointermove', e => {
-      if (!this._last) return;
-      const p = this._pt(e); this._line(this._last, p); this._last = p;
-    });
-    const up = () => { this._last = null; };
-    c.addEventListener('pointerup', up);
-    c.addEventListener('pointercancel', up);
   },
 };
 
@@ -5230,14 +5195,9 @@ const FileHandler = {
     if (!files || !files.length) return;
     if (files.length === 1) {
       const name = files[0].name.toLowerCase();
-      // HTML — 핸들이 있으면 PDF처럼 "저장된 파일"에 기록(☁로 드라이브에 올려 다른 PC에서 연다)
-      if (HtmlView.isHtml(files[0])) {
-        if (await HtmlView.open(files[0]) && handles && handles[0]) RecentFiles.record([files[0].name], [handles[0]]);
-        return;
-      }
       if (name.endsWith('.ppt') || name.endsWith('.pptx')) { PptHandler.showGuide(files[0]); return; }
     }
-    const pairs = files.map((f, i) => ({ f, h: handles ? handles[i] : null })).filter(p => this._isPdf(p.f));
+    const pairs = files.map((f, i) => ({ f, h: handles ? handles[i] : null })).filter(p => this._isPdf(p.f) || HtmlView.isHtml(p.f));
     const pdfs  = pairs.map(p => p.f);
     if (!pdfs.length) { showToast('PDF 또는 PPT/PPTX 파일만 지원합니다.', true); return; }
     if (pdfs.length < files.length) showToast(`PDF ${pdfs.length}개만 불러옵니다(다른 형식 제외).`);
