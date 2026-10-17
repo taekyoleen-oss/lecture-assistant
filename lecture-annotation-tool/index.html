@@ -1130,8 +1130,6 @@
       <button class="drive-btn" id="drive-connect-btn"
               title="다른 PC에서 드라이브에 저장한 강의·진도 불러오기">☁ Google 드라이브 연결</button>
       <span id="drive-user" hidden></span>
-      <button class="drive-btn" id="drive-pick-btn"
-              title="내 Google 드라이브에서 PDF·HTML 파일을 골라 바로 엽니다">📥 드라이브에서 가져오기</button>
       <a class="drive-btn" id="drive-open" target="_blank" rel="noopener noreferrer" hidden
          title="드라이브의 Lecture Annotation Tool 폴더를 새 탭에서 열기">📂 드라이브 열기↗</a>
       <button class="drive-btn" id="drive-refresh-btn" hidden>새로고침</button>
@@ -1420,16 +1418,12 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-17.1';
+const APP_VERSION = '2026-10-17.2';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
 // 전부 없다(기존 동작 그대로). 설정 방법: GOOGLE_DRIVE_SETUP.md
 const GOOGLE_CLIENT_ID = '992720143470-97kt935vtao5m7j5qn3etncq3pdn1ulo.apps.googleusercontent.com';
-// 📥 드라이브에서 가져오기(Google Picker) — API 키는 비워 두어도 시도한다.
-// "API developer key is invalid"가 뜨면 Google Cloud에서 Picker API 사용 설정 + API 키를 만들어 넣는다(GOOGLE_DRIVE_SETUP.md)
-const GOOGLE_API_KEY = '';
-const GOOGLE_PROJECT_NUMBER = GOOGLE_CLIENT_ID.split('-')[0];   // Picker의 setAppId — 고른 파일을 drive.file 권한으로 받게
 const DRIVE_ON = !!GOOGLE_CLIENT_ID && location.protocol !== 'file:';   // GIS는 file:// 미지원
 
 // ══════════════════════════════════════════════════════════
@@ -3901,7 +3895,7 @@ const RecentFiles = {
     if (!row.drive) { this.remove(row.id); return; }
     if (Drive.busy) return;
     Drive.ensure(() => {
-      if (!confirm('목록에서 제거됩니다. PDF 파일은 드라이브에 남습니다. 계속할까요?')) return;
+      if (!confirm('목록에서 제거됩니다. 파일은 드라이브에 남습니다. 계속할까요?')) return;
       Drive.exclusive(async () => {
         try {
           await Drive.update(list => {
@@ -3972,10 +3966,13 @@ const RecentFiles = {
         const f = got[at[i]];
         return f.name === n ? f : new File([f], n, { type: f.type, lastModified: f.lastModified });
       });
-      if (await PDFRenderer.loadFiles(files, { append: false, keepOrder: true })) {
-        state.handles = at.map(k => entry.handles[k]);   // docs 순서 — 연 직후 바로 다시 위치 저장할 수 있게
-        Drive.link();                     // 드라이브 목록에도 있는 덱이면 📌가 드라이브에도 반영
-        goToPage(row.page || 1);          // 파일이 바뀌어 범위를 넘으면 goToPage가 클램프
+      const html = HtmlView.isHtml(files[0]);
+      if (html ? await HtmlView.open(files[0]) : await PDFRenderer.loadFiles(files, { append: false, keepOrder: true })) {
+        if (!html) {
+          state.handles = at.map(k => entry.handles[k]);   // docs 순서 — 연 직후 바로 다시 위치 저장할 수 있게
+          Drive.link();                   // 드라이브 목록에도 있는 덱이면 📌가 드라이브에도 반영
+          goToPage(row.page || 1);        // 파일이 바뀌어 범위를 넘으면 goToPage가 클램프
+        }
         // 최근 연 파일은 열 때마다 맨 위로. 북마크의 time은 화면에 "저장 시각"으로
         // 표시되므로 건드리지 않는다(열었다고 갱신하면 표시가 거짓이 된다).
         if (entry.saved === false) {
@@ -4223,6 +4220,7 @@ const RecentFiles = {
 const DRIVE_API    = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 const DRIVE_SCOPE  = 'https://www.googleapis.com/auth/drive.file';
+const driveMime = name => /\.html?$/i.test(name) ? 'text/html' : 'application/pdf';
 const DRIVE_FOLDER = 'Lecture Annotation Tool';
 const DRIVE_EMPTY  = { v: 1, entries: [] };
 // Drive 검색식(q) 문자열 리터럴 이스케이프
@@ -4282,13 +4280,6 @@ const Drive = {
     };
     s.onerror = () => { this._gisFailed = true; console.warn('drive: GIS script load failed'); };
     document.head.appendChild(s);
-    // 파일 선택 창(Picker)도 미리 — 로그인 직후 바로 띄운다
-    const g = document.createElement('script');
-    g.src = 'https://apis.google.com/js/api.js';
-    g.async = true;
-    g.onload = () => gapi.load('picker', () => { this._pickerReady = true; });
-    document.head.appendChild(g);
-    $('drive-pick-btn').addEventListener('click', () => this.pickClick());
   },
 
   isConnected() { return !!this._token; },
@@ -4681,13 +4672,15 @@ const Drive = {
       //   이름도 새 파일명 기준으로 붙인다 — 이 PC 항목 label을 그대로 쓰면 목록에 똑같은 행이 둘 생긴다(36번 O-1).
       const names = newNames || docs.map(d => d.name);
       const label = (!newNames && e.label) || names[0].replace(/\.[^.]+$/, '');
-      const page  = e.page || 1;
+      const html  = HtmlView.isHtml({ name: names[0] });
+      const page  = html ? 0 : e.page || 1;   // HTML은 쪽 위치가 없다
+      const where = html ? '' : ` · ${pageText(page, e.total)}`;
       await this.update(list => this._upsert(list,
         { id: deckId(names), names, fileIds, label, page, total: e.total, time: Date.now(), saved: true }));
       loadingOverlay.classList.remove('visible');
       showToast(newNames
-        ? `${renamed.map(n => `'${n}'`).join(', ')}(으)로 드라이브에 올렸습니다 — ${label} · ${pageText(page, e.total)} (기존 파일은 그대로)`
-        : `드라이브에 올렸습니다 — ${label} · ${pageText(page, e.total)}`, false, 5000);
+        ? `${renamed.map(n => `'${n}'`).join(', ')}(으)로 드라이브에 올렸습니다 — ${label}${where} (기존 파일은 그대로)`
+        : `드라이브에 올렸습니다 — ${label}${where}`, false, 5000);
     } catch (err) {
       loadingOverlay.classList.remove('visible');
       this.fail(err, '드라이브에 올리지 못했습니다.');
@@ -4775,9 +4768,10 @@ const Drive = {
     const taken = new Set((await this._find(`'${driveQ(folder)}' in parents and trashed=false`, 'files(name)', 1000))
                             .map(f => f.name));
     docs.forEach(d => taken.add(d.name));
+    const ext = name => (/\.[^.]+$/.exec(name) || ['.pdf'])[0];   // .pdf·.html 그대로
     const next = name => {
-      const stem = name.replace(/\.pdf$/i, '').replace(/ \(\d+\)$/, '');
-      for (let n = 2; ; n++) { const c = `${stem} (${n}).pdf`; if (!taken.has(c)) return c; }
+      const stem = name.slice(0, -ext(name).length).replace(/ \(\d+\)$/, '');
+      for (let n = 2; ; n++) { const c = `${stem} (${n})${ext(name)}`; if (!taken.has(c)) return c; }
     };
     const names = docs.map(d => d.name);
     if (conflicts.length > 1) {
@@ -4791,7 +4785,7 @@ const Drive = {
       const input = prompt(msg, def);
       if (input === null || !input.trim()) return null;
       let n = input.trim();
-      if (!/\.pdf$/i.test(n)) n += '.pdf';
+      if (!n.toLowerCase().endsWith(ext(docs[i].name).toLowerCase())) n += ext(docs[i].name);
       if (!taken.has(n)) { names[i] = n; return names; }
       msg = `'${n}'은(는) 이미 있는 이름입니다. 다른 이름을 입력하세요:`;
       def = next(n);
@@ -4801,19 +4795,20 @@ const Drive = {
   // resumable 업로드 — fileId가 있으면 그 파일의 내용만 교체(PATCH), 없으면 새 파일(POST).
   // 바이트 전송은 업로드 진행률을 받으려고 XHR을 쓴다(fetch는 업로드 진행 이벤트가 없다).
   async _upload(folder, name, bytes, fileId, onProgress) {
-    const headers = { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/pdf' };
+    const mime = driveMime(name);
+    const headers = { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': mime };
     const init = fileId
       ? await this._fetch('PATCH', `${DRIVE_UPLOAD}/files/${encodeURIComponent(fileId)}?uploadType=resumable&fields=id`,
                           { body: '{}', headers })
       : await this._fetch('POST', `${DRIVE_UPLOAD}/files?uploadType=resumable&fields=id`,
-                          { body: JSON.stringify({ name, parents: [folder], mimeType: 'application/pdf' }), headers });
+                          { body: JSON.stringify({ name, parents: [folder], mimeType: mime }), headers });
     const session = init.headers.get('Location');
     if (!session) throw new Error('drive: no upload session');
     return new Promise((resolve, reject) => {
       const x = new XMLHttpRequest();
       x.open('PUT', session);
       x.setRequestHeader('Authorization', `Bearer ${this._token}`);
-      x.setRequestHeader('Content-Type', 'application/pdf');
+      x.setRequestHeader('Content-Type', mime);
       x.upload.onprogress = ev => { if (ev.lengthComputable) onProgress(ev.loaded / ev.total); };
       x.onload = () => {
         if (x.status === 401) return reject(this._expired());
@@ -4965,52 +4960,6 @@ const Drive = {
     return new Blob(parts);
   },
 
-  // 📥 드라이브에서 가져오기 — 내 드라이브 어디에 있든 PDF·HTML을 골라 바로 연다
-  pickClick() {
-    if (this.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
-    if (!this._pickerReady) { showToast('드라이브 파일 선택 창을 준비하는 중입니다. 잠시 후 다시 시도하세요.', true); return; }
-    this.ensure(() => this._pick());
-  },
-  _pick() {
-    const P = google.picker;
-    const view = new P.DocsView(P.ViewId.DOCS)
-      .setMimeTypes('application/pdf,text/html')
-      .setIncludeFolders(true)
-      .setMode(P.DocsViewMode.LIST);
-    const b = new P.PickerBuilder()
-      .setOAuthToken(this._token)
-      .setAppId(GOOGLE_PROJECT_NUMBER)
-      .addView(view)
-      .enableFeature(P.Feature.MULTISELECT_ENABLED)
-      .setLocale('ko')
-      .setTitle('열 파일 고르기 — PDF(여러 개 가능) 또는 HTML')
-      .setCallback(d => {
-        if (d[P.Response.ACTION] === P.Action.PICKED) this.exclusive(() => this._openPicked(d[P.Response.DOCUMENTS]));
-      });
-    if (GOOGLE_API_KEY) b.setDeveloperKey(GOOGLE_API_KEY);
-    b.build().setVisible(true);
-  },
-  async _openPicked(docs) {
-    const html = docs.find(d => /html/i.test(d.mimeType) || /\.html?$/i.test(d.name));
-    const list = html ? [html] : docs.filter(d => d.mimeType === 'application/pdf' || /\.pdf$/i.test(d.name));
-    if (!list.length) { showToast('PDF 또는 HTML 파일을 골라 주세요.', true); return; }
-    if (html && docs.length > 1) showToast('HTML은 한 번에 하나만 열 수 있어 첫 HTML 파일만 엽니다.');
-    this._progress('드라이브에서 받는 중…');
-    try {
-      const files = [];
-      for (let i = 0; i < list.length; i++) {
-        const blob = await this.download(list[i].id, f =>
-          this._progress(`드라이브에서 받는 중… ${Math.floor((i + f) / list.length * 100)}%`));
-        files.push(new File([blob], list[i].name, { type: list[i].mimeType }));
-      }
-      loadingOverlay.classList.remove('visible');
-      await FileHandler.load(files);
-    } catch (err) {
-      loadingOverlay.classList.remove('visible');
-      this.fail(err, '드라이브에서 파일을 받지 못했습니다.');
-    }
-  },
-
   // 드라이브에서 열기 → 로컬 IndexedDB에는 기록하지 않는다(공용 PC 흔적 금지)
   async open(row) {
     this._progress('드라이브에서 받는 중…');   // 첫 요청 전에 바로 — 화면을 덮어 두 번째 클릭을 막는다
@@ -5020,8 +4969,9 @@ const Drive = {
       for (let i = 0; i < n; i++) {
         const blob = await this.download(e.fileIds[i], f =>
           this._progress(`드라이브에서 받는 중… ${Math.floor((i + f) / n * 100)}%`));
-        files.push(new File([blob], e.names[i], { type: 'application/pdf' }));
+        files.push(new File([blob], e.names[i], { type: driveMime(e.names[i]) }));
       }
+      if (HtmlView.isHtml(files[0])) { loadingOverlay.classList.remove('visible'); await HtmlView.open(files[0]); return; }
       if (!(await PDFRenderer.loadFiles(files, { append: false, keepOrder: true }))) return;   // 오버레이·오류 안내는 loadFiles가
       state.driveFileIds = e.fileIds.slice();   // 항목 순서 그대로 연다 = docs 순서
       state.driveOpened = true;
@@ -5069,11 +5019,12 @@ const HtmlView = {
   isHtml(f) { return /\.html?$/i.test(f.name) || f.type === 'text/html'; },
   isOpen() { return this._view.classList.contains('open'); },
 
+  // 성공하면 true
   async open(file) {
-    if (state.pdf) { showToast('열린 PDF를 닫은 뒤 HTML 파일을 여세요.', true); return; }
+    if (state.pdf) { showToast('열린 PDF를 닫은 뒤 HTML 파일을 여세요.', true); return false; }
     let text;
     try { text = await file.text(); }
-    catch (e) { showToast('HTML 파일을 읽을 수 없습니다: ' + e.message, true); return; }
+    catch (e) { showToast('HTML 파일을 읽을 수 없습니다: ' + e.message, true); return false; }
     this.name = file.name; this.text = text;
     this._frame.addEventListener('load', () => this._frame.focus(), { once: true });
     this._frame.srcdoc = this._inject(text);
@@ -5083,6 +5034,7 @@ const HtmlView = {
     this._view.classList.add('open');
     this.setDraw(false);
     openDeckHistory();                         // 뒤로가기 = 닫기
+    return true;
   },
 
   close() {
@@ -5095,6 +5047,7 @@ const HtmlView = {
     $('main-area').appendChild($('end-remain'));
     idleScreen.classList.remove('hidden');
     if (history.state && history.state.lat === 'deck') history.back();
+    RecentFiles.render();                      // 방금 닫은 파일이 목록 맨 위 → 1클릭 재열기
   },
 
   // <head> 바로 뒤에 — doctype 앞에 넣으면 호환 모드로 바뀌어 화면이 달라진다
@@ -5277,7 +5230,11 @@ const FileHandler = {
     if (!files || !files.length) return;
     if (files.length === 1) {
       const name = files[0].name.toLowerCase();
-      if (HtmlView.isHtml(files[0])) { HtmlView.open(files[0]); return; }
+      // HTML — 핸들이 있으면 PDF처럼 "저장된 파일"에 기록(☁로 드라이브에 올려 다른 PC에서 연다)
+      if (HtmlView.isHtml(files[0])) {
+        if (await HtmlView.open(files[0]) && handles && handles[0]) RecentFiles.record([files[0].name], [handles[0]]);
+        return;
+      }
       if (name.endsWith('.ppt') || name.endsWith('.pptx')) { PptHandler.showGuide(files[0]); return; }
     }
     const pairs = files.map((f, i) => ({ f, h: handles ? handles[i] : null })).filter(p => this._isPdf(p.f));

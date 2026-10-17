@@ -214,17 +214,3 @@
 - 이 앱은 **자기가 만든 파일만** 볼 수 있습니다(`drive.file` 권한).
 - 권한을 완전히 거두려면: https://myaccount.google.com/permissions → Lecture Annotation Tool → 액세스 권한 삭제.
 
----
-
-## 📥 드라이브에서 가져오기 (Google Picker) — 2026-10-17 추가
-
-첫 화면의 **📥 드라이브에서 가져오기** 버튼은 Google 파일 선택 창(Picker)으로 내 드라이브의 PDF·HTML을 골라 바로 엽니다.
-권한은 기존과 같은 `drive.file`입니다. 사용자가 고른 파일만 앱이 읽을 수 있습니다.
-
-1. Google Cloud 콘솔 → **API 및 서비스 → 라이브러리**에서 **Google Picker API**를 사용 설정합니다.
-2. 선택 창에 "API developer key is invalid" 같은 오류가 나오면 API 키가 필요합니다.
-   - **사용자 인증 정보 → API 키 만들기**
-   - 애플리케이션 제한: 웹사이트에 `https://lecture-assistant-chi.vercel.app/*`와 `https://docs.google.com/*`를 넣습니다.
-   - API 제한: Google Picker API, Google Drive API
-   - 만든 키를 `index.html`의 `GOOGLE_API_KEY = ''`에 넣고 배포합니다.
-3. `setAppId`에는 Client ID 앞자리(프로젝트 번호)가 자동으로 들어갑니다. 따로 설정하지 않아도 됩니다.
