@@ -641,9 +641,8 @@
     body.html-deck #html-frame { display: block; }
     /* 도구를 해제하면(같은 도구 버튼 한 번 더) 클릭이 HTML 안의 버튼으로 간다 */
     body.html-deck.tool-none #draw-layer { pointer-events: none; }
-    /* HTML에서는 영역 캡처·PDF 이어 붙이기를 숨긴다(PNG 저장은 HTML이 직접 그려 준다) */
-    body.html-deck #add-pdf-btn,
-    body.html-deck .tool-btn[data-tool="screenshot"] { display: none; }
+    /* HTML에서는 PDF 이어 붙이기를 숨긴다(PNG 저장·영역 캡처는 HTML이 직접 그려 준다) */
+    body.html-deck #add-pdf-btn { display: none; }
 
     /* ── 검은 / 흰 화면 오버레이 ───────────────────────────── */
     #blank-overlay {
@@ -1379,7 +1378,7 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-17.4';
+const APP_VERSION = '2026-10-17.5';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
@@ -2195,15 +2194,17 @@ function drawSelectionRect(x1, y1, x2, y2) {
 
 // captureRegion: 캔버스 합성 후 프리뷰 팝업 표시
 // 클립보드 복사는 팝업 버튼 클릭(= 명확한 user gesture)으로 처리
-function captureRegion(x1, y1, x2, y2) {
+async function captureRegion(x1, y1, x2, y2) {
   const left = Math.min(x1, x2), top = Math.min(y1, y2);
   const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
   if (w < 4 || h < 4) return;
+  const slide = await slideImage();
+  if (!slide) return;
 
   const off = document.createElement('canvas');
   off.width = w; off.height = h;
   const ctx = off.getContext('2d');
-  ctx.drawImage(pdfCanvas,  left, top, w, h, 0, 0, w, h);
+  ctx.drawImage(slide,      left, top, w, h, 0, 0, w, h);
   ctx.drawImage(drawCanvas, left, top, w, h, 0, 0, w, h);
 
   showScreenshotPreview(off);
@@ -3226,25 +3227,34 @@ function syncF11Presentation() {
 }
 fullscreenMQ.addEventListener('change', syncF11Presentation);
 
+// 지금 쪽의 슬라이드 그림(주석 제외, pdfCanvas와 같은 크기) — PDF는 캔버스 그대로,
+// HTML은 앱이 iframe 화면을 직접 찍을 수 없어 HTML 쪽에서 그림으로 만들어 받는다. 실패하면 안내 후 null
+async function slideImage() {
+  if (!state.docs[0]?.html) return pdfCanvas;
+  $('loading-text').textContent = '그림 만드는 중...';
+  loadingOverlay.classList.add('visible');
+  try {
+    const img = new Image();
+    img.src = await HtmlView.snap(pdfCanvas.width, pdfCanvas.height);
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = pdfCanvas.width; c.height = pdfCanvas.height;
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  } catch (e) {
+    showToast('HTML 화면을 그림으로 만들지 못했습니다(인터넷 연결 필요): ' + e.message, true, 5000);
+    return null;
+  } finally { loadingOverlay.classList.remove('visible'); }
+}
+
 savePngBtn.addEventListener('click', async () => {
+  const slide = await slideImage();
+  if (!slide) return;
   const off = document.createElement('canvas');
   off.width  = pdfCanvas.width;
   off.height = pdfCanvas.height;
   const ctx  = off.getContext('2d');
-  if (state.docs[0]?.html) {
-    // HTML 슬라이드 — 앱은 iframe 화면을 직접 찍을 수 없어 HTML 쪽에서 그림으로 만들어 받는다
-    $('loading-text').textContent = 'PNG 만드는 중...';
-    loadingOverlay.classList.add('visible');
-    try {
-      const img = new Image();
-      img.src = await HtmlView.snap(off.width, off.height);
-      await img.decode();
-      ctx.drawImage(img, 0, 0, off.width, off.height);
-    } catch (e) {
-      showToast('HTML 화면을 PNG로 만들지 못했습니다(인터넷 연결 필요): ' + e.message, true, 5000);
-      return;
-    } finally { loadingOverlay.classList.remove('visible'); }
-  } else ctx.drawImage(pdfCanvas, 0, 0);
+  ctx.drawImage(slide, 0, 0);
   ctx.drawImage(drawCanvas, 0, 0);
   const a   = document.createElement('a');
   a.download = `slide-${state.currentPage}.png`;
@@ -3308,7 +3318,7 @@ const KeyboardHandler = {
         case '5': ToolController.toggleTool('text');      break;
         case '6': ToolController.toggleTool('highlight'); break;
         case '7': ToolController.toggleTool('eraser');     break;
-        case '8': if (!state.docs[0]?.html) ToolController.toggleTool('screenshot'); break;
+        case '8': ToolController.toggleTool('screenshot'); break;
         case '9': ToolController.toggleTool('select');     break;
         case '0': ToolController.toggleTool('laser');      break;
         case 'b': case 'B': setBlank('black'); e.preventDefault(); break;
