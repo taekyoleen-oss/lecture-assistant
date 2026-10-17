@@ -10,15 +10,19 @@ const PORT = process.env.PORT || 3000;
 
 /** 주석 도구 단일 HTML + CDN — Vercel 프리뷰/애널리틱스 스크립트 포함
  *  accounts.google.com / googleapis.com = Google 드라이브 동기화(GIS 로그인 + Drive REST).
- *  frame-src는 default-src 'self' 폴백을 받으므로 GIS용으로 명시한다. */
+ *  apis.google.com + docs.google.com(frame) = 드라이브 파일 선택 창(Picker).
+ *  frame-src는 default-src 'self' 폴백을 받으므로 GIS용으로 명시한다.
+ *  https: 허용(script·style·font·img·media·connect) = HTML 파일 보기. srcdoc iframe은 이 정책을 물려받으므로
+ *  강의 HTML이 쓰는 CDN 글꼴·라이브러리가 막히지 않게 연다. 그 iframe은 sandbox(별도 origin)라 앱 저장소에 못 닿는다. */
 const CSP_HTML = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://vercel.live https://*.vercel.live https://va.vercel-scripts.com https://accounts.google.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com",
-  "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' data: blob:",
-  "connect-src 'self' https://cdnjs.cloudflare.com https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com",
-  "frame-src 'self' https://accounts.google.com",
+  "script-src 'self' 'unsafe-inline' https:",
+  "style-src 'self' 'unsafe-inline' https:",
+  "font-src 'self' https: data:",
+  "img-src 'self' https: data: blob:",
+  "media-src 'self' https: data: blob:",
+  "connect-src 'self' https:",
+  "frame-src 'self' https://accounts.google.com https://docs.google.com https://drive.google.com",
   "worker-src 'self' blob: https://cdnjs.cloudflare.com",
   "base-uri 'self'",
 ].join('; ');

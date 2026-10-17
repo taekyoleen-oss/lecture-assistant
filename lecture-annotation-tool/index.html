@@ -633,6 +633,41 @@
     /* 전체보기에서는 조금 크게(멀리서도 읽히게) */
     body.presentation #end-remain { font-size: 18px; padding: 3px 11px; border-radius: 7px; }
 
+    /* ── HTML 파일 보기 — 원본 HTML을 iframe에서 그대로 실행(모션·버튼·단축키 유지) ── */
+    #html-view {
+      position: fixed; inset: 0; z-index: 100;
+      display: none; flex-direction: column; background: #0f0f0f;
+    }
+    #html-view.open { display: flex; }
+    #html-bar {
+      flex: none; height: 36px; display: flex; align-items: center; gap: 6px;
+      padding: 0 10px; font-size: 12px; color: var(--text-muted);
+      background: var(--surface2); border-bottom: 1px solid var(--border);
+    }
+    /* 이름은 가운데 — 왼쪽 위는 남은 시간 표시 자리 */
+    #html-name { flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #html-bar button {
+      font-family: inherit; font-size: 12px; color: var(--text-muted);
+      background: transparent; border: 1px solid var(--border2); border-radius: 6px;
+      padding: 3px 9px; cursor: pointer; white-space: nowrap;
+    }
+    #html-bar button:hover { background: var(--tool-hover); color: var(--text); }
+    #html-bar button.on, #html-timer-btn.active { color: #3B82F6; border-color: #3B82F6; }
+    #html-stage { flex: 1; position: relative; min-height: 0; }
+    #html-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+    /* 그리기 켜면 iframe 위 투명 캔버스가 입력을 받는다(끄면 클릭이 HTML로 그대로 간다) */
+    #html-draw { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; }
+    #html-draw.drawing { pointer-events: auto; cursor: crosshair; }
+    /* 전체보기 — 막대는 숨기고 맨 위 가장자리에 마우스를 대면 내려온다 */
+    #html-peek { display: none; position: absolute; top: 0; left: 0; right: 0; height: 6px; z-index: 3; }
+    body.presentation #html-peek { display: block; }
+    body.presentation #html-bar {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 4;
+      transform: translateY(-100%); transition: transform .15s;
+    }
+    body.presentation #html-view.peek #html-bar { transform: none; }
+    @media (max-width: 600px) { #html-bar .wide { display: none; } }
+
     /* ── 검은 / 흰 화면 오버레이 ───────────────────────────── */
     #blank-overlay {
       position: fixed; inset: 0;
@@ -1082,10 +1117,10 @@
   <button id="idle-timer-btn" title="마치는 시각 타이머 (T) — 5분 전부터 남은 시간 표시">⏱ 마치는 시각</button>
   <div id="drop-zone">
     <div class="icon">📄</div>
-    <div class="label">PDF 파일을 드래그하거나 클릭해서 선택하세요</div>
+    <div class="label">PDF·HTML 파일을 드래그하거나 클릭해서 선택하세요</div>
     <div class="sub">여러 PDF를 한 번에 선택하면 순서대로 이어서 봅니다</div>
   </div>
-  <input type="file" id="file-input" accept=".pdf,.ppt,.pptx" multiple />
+  <input type="file" id="file-input" accept=".pdf,.ppt,.pptx,.html,.htm" multiple />
 
   <div id="idle-lower">
     <!-- Google 드라이브 연결 상태 — GOOGLE_CLIENT_ID가 비어 있으면 CSS로 숨김 -->
@@ -1095,6 +1130,8 @@
       <button class="drive-btn" id="drive-connect-btn"
               title="다른 PC에서 드라이브에 저장한 강의·진도 불러오기">☁ Google 드라이브 연결</button>
       <span id="drive-user" hidden></span>
+      <button class="drive-btn" id="drive-pick-btn"
+              title="내 Google 드라이브에서 PDF·HTML 파일을 골라 바로 엽니다">📥 드라이브에서 가져오기</button>
       <a class="drive-btn" id="drive-open" target="_blank" rel="noopener noreferrer" hidden
          title="드라이브의 Lecture Annotation Tool 폴더를 새 탭에서 열기">📂 드라이브 열기↗</a>
       <button class="drive-btn" id="drive-refresh-btn" hidden>새로고침</button>
@@ -1140,6 +1177,24 @@
 <div id="loading-overlay">
   <div class="spinner"></div>
   <p id="loading-text">PDF 로딩 중...</p>
+</div>
+
+<!-- ── HTML 파일 보기 ─────────────────────────────────── -->
+<div id="html-view">
+  <div id="html-peek"></div>
+  <div id="html-bar">
+    <span id="html-name"></span>
+    <button id="html-draw-btn" title="그리기 켜기·끄기 — 끄면 그린 것이 지워집니다. 그리는 중에도 ← → 로 넘길 수 있습니다">✏ 그리기</button>
+    <button id="html-timer-btn" class="wide" title="마치는 시각 (T)">⏱</button>
+    <button id="html-present-btn" title="전체보기 (F)">⤢ 전체보기</button>
+    <button id="html-save-btn" class="wide" title="이 HTML 파일을 PC에 저장">⬇ 저장</button>
+    <button id="html-close-btn" title="닫기">✕ 닫기</button>
+  </div>
+  <div id="html-stage">
+    <iframe id="html-frame" title="HTML 파일"
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals allow-downloads"></iframe>
+    <canvas id="html-draw"></canvas>
+  </div>
 </div>
 
 <!-- ── PRESENTING App ────────────────────────────────── -->
@@ -1365,12 +1420,16 @@
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
-const APP_VERSION = '2026-10-15.1';
+const APP_VERSION = '2026-10-17.1';
 console.log('[lecture-annotation-tool] v' + APP_VERSION);
 
 // Google 드라이브 동기화용 OAuth 클라이언트 ID(공개값). 비어 있으면 드라이브 UI·스크립트 로드가
 // 전부 없다(기존 동작 그대로). 설정 방법: GOOGLE_DRIVE_SETUP.md
 const GOOGLE_CLIENT_ID = '992720143470-97kt935vtao5m7j5qn3etncq3pdn1ulo.apps.googleusercontent.com';
+// 📥 드라이브에서 가져오기(Google Picker) — API 키는 비워 두어도 시도한다.
+// "API developer key is invalid"가 뜨면 Google Cloud에서 Picker API 사용 설정 + API 키를 만들어 넣는다(GOOGLE_DRIVE_SETUP.md)
+const GOOGLE_API_KEY = '';
+const GOOGLE_PROJECT_NUMBER = GOOGLE_CLIENT_ID.split('-')[0];   // Picker의 setAppId — 고른 파일을 drive.file 권한으로 받게
 const DRIVE_ON = !!GOOGLE_CLIENT_ID && location.protocol !== 'file:';   // GIS는 file:// 미지원
 
 // ══════════════════════════════════════════════════════════
@@ -2442,6 +2501,7 @@ const EndTime = {
     this._paintState();
     $('timer-btn').classList.toggle('active', !!this.at);
     $('idle-timer-btn').classList.toggle('active', !!this.at);
+    $('html-timer-btn').classList.toggle('active', !!this.at);
     const show = !!this.at && left <= this.WARN;
     el.classList.toggle('show', show);
     if (!show) return;
@@ -2499,7 +2559,7 @@ const EndTime = {
     // 첫 화면에서는 "⏱ 마치는 시각" 버튼으로만 열고 닫는다.
     document.addEventListener('pointerdown', e => {
       if ($('lecture-timer').classList.contains('visible') && idleScreen.classList.contains('hidden')
-          && !e.target.closest('#lecture-timer, #timer-btn, #idle-timer-btn')) this.toggle();
+          && !e.target.closest('#lecture-timer, #timer-btn, #idle-timer-btn, #html-timer-btn')) this.toggle();
     });
     // 입력란을 바꾸는 것만으로는 적용하지 않는다 — ▶ 시작(또는 Enter)을 눌러야 시작
     for (const id of ['timer-end-ampm', 'timer-end-hour', 'timer-end-min']) {
@@ -3044,7 +3104,9 @@ function openDeckHistory() {
   if (!(history.state && history.state.lat === 'deck')) history.pushState({ lat: 'deck' }, '');
 }
 addEventListener('popstate', () => {
-  if (state.pdf && !(history.state && history.state.lat === 'deck')) closeDeck();
+  if (history.state && history.state.lat === 'deck') return;
+  if (state.pdf) closeDeck();
+  if (HtmlView.isOpen()) HtmlView.close();
 });
 $('save-pos-btn')  .addEventListener('click', () => RecentFiles.save());
 $('save-close-btn').addEventListener('click', () => saveAndClose());
@@ -3210,6 +3272,7 @@ const KeyboardHandler = {
       // 텍스트 input 포커스 중이면 내비게이션 무시 (input 자체에서 stopPropagation)
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (HtmlView.isOpen()) { HtmlView.key(e); return; }   // HTML 보기 — 키는 그 HTML로 넘긴다
       if (loadingOverlay.classList.contains('visible')) return;   // 로딩·저장 중에는 단축키를 막는다
       // 한글 IME가 켜져 있으면 e.key가 'ㄹ'·'ㅠ'·'ㅈ'·'ㅅ'로 들어와 글자 단축키가
       // 전부 죽는다(한국인 강사 기본 환경). 물리 키(e.code)에서 영문자를 복원해
@@ -4219,6 +4282,13 @@ const Drive = {
     };
     s.onerror = () => { this._gisFailed = true; console.warn('drive: GIS script load failed'); };
     document.head.appendChild(s);
+    // 파일 선택 창(Picker)도 미리 — 로그인 직후 바로 띄운다
+    const g = document.createElement('script');
+    g.src = 'https://apis.google.com/js/api.js';
+    g.async = true;
+    g.onload = () => gapi.load('picker', () => { this._pickerReady = true; });
+    document.head.appendChild(g);
+    $('drive-pick-btn').addEventListener('click', () => this.pickClick());
   },
 
   isConnected() { return !!this._token; },
@@ -4895,6 +4965,52 @@ const Drive = {
     return new Blob(parts);
   },
 
+  // 📥 드라이브에서 가져오기 — 내 드라이브 어디에 있든 PDF·HTML을 골라 바로 연다
+  pickClick() {
+    if (this.busy) { showToast('드라이브 작업이 끝난 뒤 다시 시도하세요.', true); return; }
+    if (!this._pickerReady) { showToast('드라이브 파일 선택 창을 준비하는 중입니다. 잠시 후 다시 시도하세요.', true); return; }
+    this.ensure(() => this._pick());
+  },
+  _pick() {
+    const P = google.picker;
+    const view = new P.DocsView(P.ViewId.DOCS)
+      .setMimeTypes('application/pdf,text/html')
+      .setIncludeFolders(true)
+      .setMode(P.DocsViewMode.LIST);
+    const b = new P.PickerBuilder()
+      .setOAuthToken(this._token)
+      .setAppId(GOOGLE_PROJECT_NUMBER)
+      .addView(view)
+      .enableFeature(P.Feature.MULTISELECT_ENABLED)
+      .setLocale('ko')
+      .setTitle('열 파일 고르기 — PDF(여러 개 가능) 또는 HTML')
+      .setCallback(d => {
+        if (d[P.Response.ACTION] === P.Action.PICKED) this.exclusive(() => this._openPicked(d[P.Response.DOCUMENTS]));
+      });
+    if (GOOGLE_API_KEY) b.setDeveloperKey(GOOGLE_API_KEY);
+    b.build().setVisible(true);
+  },
+  async _openPicked(docs) {
+    const html = docs.find(d => /html/i.test(d.mimeType) || /\.html?$/i.test(d.name));
+    const list = html ? [html] : docs.filter(d => d.mimeType === 'application/pdf' || /\.pdf$/i.test(d.name));
+    if (!list.length) { showToast('PDF 또는 HTML 파일을 골라 주세요.', true); return; }
+    if (html && docs.length > 1) showToast('HTML은 한 번에 하나만 열 수 있어 첫 HTML 파일만 엽니다.');
+    this._progress('드라이브에서 받는 중…');
+    try {
+      const files = [];
+      for (let i = 0; i < list.length; i++) {
+        const blob = await this.download(list[i].id, f =>
+          this._progress(`드라이브에서 받는 중… ${Math.floor((i + f) / list.length * 100)}%`));
+        files.push(new File([blob], list[i].name, { type: list[i].mimeType }));
+      }
+      loadingOverlay.classList.remove('visible');
+      await FileHandler.load(files);
+    } catch (err) {
+      loadingOverlay.classList.remove('visible');
+      this.fail(err, '드라이브에서 파일을 받지 못했습니다.');
+    }
+  },
+
   // 드라이브에서 열기 → 로컬 IndexedDB에는 기록하지 않는다(공용 PC 흔적 금지)
   async open(row) {
     this._progress('드라이브에서 받는 중…');   // 첫 요청 전에 바로 — 화면을 덮어 두 번째 클릭을 막는다
@@ -4924,6 +5040,146 @@ const Drive = {
         this.fail(err, '드라이브에서 파일을 받지 못했습니다.');
       }
     }
+  },
+};
+
+// ══════════════════════════════════════════════════════════
+// HtmlView — HTML 파일을 iframe에서 원본 그대로 실행(모션·버튼·단축키 유지)
+// sandbox(allow-same-origin 없음)라 그 HTML은 앱의 저장소·드라이브 연결에 손댈 수 없다.
+// ══════════════════════════════════════════════════════════
+// iframe 안에 끼워 넣는 연결 코드 — HTML의 전체화면 요청을 앱 전체보기로 돌리고(남은 시간이 보이게),
+// 앱이 넘겨주는 키를 그 HTML에 전달한다(그리기 중 ← → 넘기기)
+function htmlBridge() {
+  var P = parent;
+  function fs() { P.postMessage({ lat: 'fs' }, '*'); return Promise.resolve(); }
+  Element.prototype.requestFullscreen = Element.prototype.webkitRequestFullscreen = fs;
+  Document.prototype.exitFullscreen = Document.prototype.webkitExitFullscreen = fs;
+  addEventListener('message', function (e) {
+    var d = e.data;
+    if (e.source !== P || !d || d.lat !== 'key') return;
+    (document.body || document.documentElement).dispatchEvent(new KeyboardEvent('keydown',
+      { key: d.key, code: d.code, shiftKey: d.shift, bubbles: true, cancelable: true }));
+  });
+}
+
+const HtmlView = {
+  name: '', text: '',
+  _view: $('html-view'), _frame: $('html-frame'), _draw: $('html-draw'), _last: null,
+
+  isHtml(f) { return /\.html?$/i.test(f.name) || f.type === 'text/html'; },
+  isOpen() { return this._view.classList.contains('open'); },
+
+  async open(file) {
+    if (state.pdf) { showToast('열린 PDF를 닫은 뒤 HTML 파일을 여세요.', true); return; }
+    let text;
+    try { text = await file.text(); }
+    catch (e) { showToast('HTML 파일을 읽을 수 없습니다: ' + e.message, true); return; }
+    this.name = file.name; this.text = text;
+    this._frame.addEventListener('load', () => this._frame.focus(), { once: true });
+    this._frame.srcdoc = this._inject(text);
+    $('html-name').textContent = file.name;
+    this._view.appendChild($('end-remain'));   // 남은 시간 표시를 이 화면 위로
+    idleScreen.classList.add('hidden');
+    this._view.classList.add('open');
+    this.setDraw(false);
+    openDeckHistory();                         // 뒤로가기 = 닫기
+  },
+
+  close() {
+    if (!this.isOpen()) return;
+    if (isPresenting()) exitPresentationMode();
+    this.setDraw(false);
+    this._view.classList.remove('open', 'peek');
+    this._frame.srcdoc = '';                   // 그 HTML의 스크립트·소리를 멈춘다
+    this.text = '';
+    $('main-area').appendChild($('end-remain'));
+    idleScreen.classList.remove('hidden');
+    if (history.state && history.state.lat === 'deck') history.back();
+  },
+
+  // <head> 바로 뒤에 — doctype 앞에 넣으면 호환 모드로 바뀌어 화면이 달라진다
+  _inject(text) {
+    const tag = '<script>(' + htmlBridge + ')()<\/script>';
+    const m = /<head(\s[^>]*)?>/i.exec(text) || /<html(\s[^>]*)?>/i.exec(text) || /<!doctype[^>]*>/i.exec(text);
+    return m ? text.slice(0, m.index + m[0].length) + tag + text.slice(m.index + m[0].length) : tag + text;
+  },
+
+  save() {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([this.text], { type: 'text/html' }));
+    a.download = this.name || 'page.html';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
+
+  // 그리기: 켜면 투명 캔버스가 입력을 받고, 끄면 지운 뒤 클릭을 HTML로 돌려준다
+  setDraw(on) {
+    const c = this._draw;
+    c.classList.toggle('drawing', on);
+    $('html-draw-btn').classList.toggle('on', on);
+    if (on) this._fit(); else c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  },
+  _fit() {
+    const c = this._draw, r = c.getBoundingClientRect(), q = window.devicePixelRatio || 1;
+    c.width = Math.round(r.width * q); c.height = Math.round(r.height * q);
+  },
+  _pt(e) {
+    const r = this._draw.getBoundingClientRect(), q = this._draw.width / (r.width || 1);
+    return { x: (e.clientX - r.left) * q, y: (e.clientY - r.top) * q };
+  },
+  _line(a, b) {
+    const ctx = this._draw.getContext('2d');
+    ctx.strokeStyle = COLOR_MAP[state.activeColor] || state.activeColor;
+    ctx.lineWidth = state.lineWidth * (window.devicePixelRatio || 1);
+    ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  },
+
+  // 앱 쪽에 포커스가 있을 때(그리기 중·막대 버튼 클릭 뒤)의 키
+  key(e) {
+    const k = /^Key[A-Z]$/.test(e.code) ? e.code.slice(3).toLowerCase() : e.key;
+    if (k === 'f' || k === 'F11') { e.preventDefault(); togglePresentation(); return; }
+    if (k === 't') { EndTime.toggle(); return; }
+    if (k === 'Escape' && this._draw.classList.contains('drawing')) { this.setDraw(false); return; }
+    if (k === 'Escape' && isPresenting()) { exitPresentationMode(); return; }
+    // 쪽을 넘기는 키면 그린 것을 지운다(그리기는 켠 채로)
+    if (/^(Arrow|Page|Home|End|Enter|Backspace| )/.test(e.key)) {
+      e.preventDefault();
+      const c = this._draw; c.getContext('2d').clearRect(0, 0, c.width, c.height);
+    }
+    this._frame.contentWindow.postMessage({ lat: 'key', key: e.key, code: e.code, shift: e.shiftKey }, '*');
+  },
+
+  init() {
+    const bar = (id, fn) => $(id).addEventListener('click', e => {
+      fn();
+      // 버튼에 포커스가 남으면 Space·Enter가 버튼을 다시 누른다 — 그리기 중엔 앱이, 아니면 HTML이 키를 받게
+      if (this._draw.classList.contains('drawing')) e.currentTarget.blur(); else if (id !== 'html-timer-btn') this._frame.focus();
+    });
+    bar('html-draw-btn',    () => this.setDraw(!this._draw.classList.contains('drawing')));
+    bar('html-timer-btn',   () => EndTime.toggle());
+    bar('html-present-btn', () => togglePresentation());
+    bar('html-save-btn',    () => this.save());
+    $('html-close-btn').addEventListener('click', () => this.close());
+    $('html-peek').addEventListener('mouseenter', () => this._view.classList.add('peek'));
+    $('html-bar').addEventListener('mouseleave', () => this._view.classList.remove('peek'));
+    document.addEventListener('fullscreenchange', () => {
+      $('html-present-btn').textContent = isPresenting() ? '✕ 전체보기 종료' : '⤢ 전체보기';
+    });
+    addEventListener('message', e => {
+      if (e.source === this._frame.contentWindow && e.data && e.data.lat === 'fs') togglePresentation();
+    });
+    addEventListener('resize', () => { if (this._draw.classList.contains('drawing')) this._fit(); });   // 크기가 바뀌면 그린 것은 지워진다
+
+    const c = this._draw;
+    c.addEventListener('pointerdown', e => { c.setPointerCapture(e.pointerId); this._last = this._pt(e); this._line(this._last, this._last); });
+    c.addEventListener('pointermove', e => {
+      if (!this._last) return;
+      const p = this._pt(e); this._line(this._last, p); this._last = p;
+    });
+    const up = () => { this._last = null; };
+    c.addEventListener('pointerup', up);
+    c.addEventListener('pointercancel', up);
   },
 };
 
@@ -4989,6 +5245,7 @@ const FileHandler = {
           'application/pdf': ['.pdf'],
           'application/vnd.ms-powerpoint': ['.ppt'],
           'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+          'text/html': ['.html', '.htm'],
         } }],
       });
       const files = await Promise.all(handles.map(h => h.getFile()));
@@ -5020,6 +5277,7 @@ const FileHandler = {
     if (!files || !files.length) return;
     if (files.length === 1) {
       const name = files[0].name.toLowerCase();
+      if (HtmlView.isHtml(files[0])) { HtmlView.open(files[0]); return; }
       if (name.endsWith('.ppt') || name.endsWith('.pptx')) { PptHandler.showGuide(files[0]); return; }
     }
     const pairs = files.map((f, i) => ({ f, h: handles ? handles[i] : null })).filter(p => this._isPdf(p.f));
@@ -5252,6 +5510,7 @@ for (const [i, ch] of [...'Lecture Assistant'].entries()) {
   $('app-title').appendChild(s);
 }
 FileHandler.init();
+HtmlView.init();
 Drive.init();          // GOOGLE_CLIENT_ID가 비어 있으면 아무것도 안 한다
 RecentFiles.init();
 PageScrollRail.init();
