@@ -1053,7 +1053,7 @@
     #ppt-convert-note { font-size: 11px; color: var(--text-dim); margin-top: 10px; text-align: center; line-height: 1.5; }
 
     /* ── 우클릭 컨텍스트 메뉴 ──────────────────────────────── */
-    #ctx-menu {
+    #ctx-menu, #present-menu {
       display: none;
       position: fixed;
       background: var(--surface);
@@ -1064,7 +1064,16 @@
       box-shadow: 0 8px 28px rgba(0,0,0,0.16);
       min-width: 170px;
     }
-    #ctx-menu.visible { display: block; }
+    #ctx-menu.visible, #present-menu.visible { display: block; }
+    .ctx-item.active { color: var(--text); background: var(--tool-hover); font-weight: 600; }
+    /* 전체보기 메뉴의 영역 캡처 — 항목이 아니라 버튼으로 */
+    #pm-capture {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: calc(100% - 4px); margin: 2px; padding: 8px 12px;
+      border: 1px solid var(--border2); border-radius: 8px;
+      background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+    }
+    #pm-capture:hover, #pm-capture.active { background: var(--tool-hover); }
     .ctx-item {
       display: flex;
       align-items: center;
@@ -1345,6 +1354,25 @@
     <span class="ctx-label">붙여넣기</span>
     <span class="ctx-shortcut">Ctrl+V</span>
   </div>
+</div>
+
+<!-- 전체보기 우클릭 메뉴 (전체보기 중에는 위 메뉴 대신 이것) -->
+<div id="present-menu">
+  <div class="ctx-item" data-action="prev"><span class="ctx-icon">←</span><span class="ctx-label">뒤로 가기</span><span class="ctx-shortcut">←</span></div>
+  <div class="ctx-item" data-action="next"><span class="ctx-icon">→</span><span class="ctx-label">앞으로 가기</span><span class="ctx-shortcut">→</span></div>
+  <div class="ctx-item" data-tool="laser"><span class="ctx-icon">◉</span><span class="ctx-label">레이저 포인터</span><span class="ctx-shortcut">0</span></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-tool="select"><span class="ctx-icon">✋</span><span class="ctx-label">선택</span><span class="ctx-shortcut">9</span></div>
+  <div class="ctx-item" data-tool="highlight"><span class="ctx-icon">🖍</span><span class="ctx-label">형광펜</span><span class="ctx-shortcut">6</span></div>
+  <div class="ctx-item" data-tool="pen"><span class="ctx-icon">✎</span><span class="ctx-label">펜</span><span class="ctx-shortcut">1</span></div>
+  <div class="ctx-item" data-tool="arrow"><span class="ctx-icon">↗</span><span class="ctx-label">화살표</span><span class="ctx-shortcut">2</span></div>
+  <div class="ctx-item" data-tool="rect"><span class="ctx-icon">▭</span><span class="ctx-label">네모</span><span class="ctx-shortcut">4</span></div>
+  <div class="ctx-item" data-tool="eraser"><span class="ctx-icon">⌫</span><span class="ctx-label">지우기</span><span class="ctx-shortcut">7</span></div>
+  <div class="ctx-item" data-action="clear-all"><span class="ctx-icon">🗑</span><span class="ctx-label">모든 주석 지우기</span></div>
+  <div class="ctx-sep"></div>
+  <button type="button" id="pm-capture" data-tool="screenshot">⬚ 영역 캡처 <span class="ctx-shortcut">8</span></button>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="exit"><span class="ctx-icon">✕</span><span class="ctx-label">전체화면 종료</span><span class="ctx-shortcut">Esc</span></div>
 </div>
 
 <!-- Toast -->
@@ -2599,7 +2627,7 @@ function isInsideCanvas(e) {
 }
 
 drawCanvas.addEventListener('mousedown', e => {
-  if (!isInsideCanvas(e)) return;
+  if (e.button !== 0 || !isInsideCanvas(e)) return;   // 우클릭은 메뉴 — 그리지 않는다
   const pos = getCanvasPos(e);
   const np  = nPt(pos.x, pos.y);
 
@@ -5036,6 +5064,10 @@ function htmlBridge() {
     e.preventDefault(); e.stopImmediatePropagation();
     P.postMessage({ lat: 'key', key: e.key, code: e.code, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey }, '*');
   }, true);
+  addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    P.postMessage({ lat: 'ctx', x: e.clientX, y: e.clientY }, '*');
+  });
   addEventListener('message', function (e) {
     var d = e.data;
     if (e.source !== P || !d) return;
@@ -5147,6 +5179,10 @@ const HtmlView = {
       if (d.lat === 'fs') togglePresentation();
       else if (d.lat === 'page') this._page(d);
       else if (d.lat === 'png') this._snap?.(d);
+      else if (d.lat === 'ctx') {   // 도구 해제 중 HTML 안 우클릭 — 앱 메뉴를 그 자리에
+        const r = this._frame.getBoundingClientRect();
+        openCtxMenu(r.left + d.x, r.top + d.y);
+      }
       else if (d.lat === 'key') KeyboardHandler.handle({
         key: d.key, code: d.code, shiftKey: d.shift, ctrlKey: d.ctrl, metaKey: false,
         target: document.body, preventDefault() {},
@@ -5295,6 +5331,25 @@ themeToggle.addEventListener('click', () => {
 // ══════════════════════════════════════════════════════════
 const ctxMenu = $('ctx-menu');
 
+const presentMenu = $('present-menu');
+function placeMenu(menu, clientX, clientY) {
+  menu.classList.add('visible');
+  // 화면 밖으로 넘치지 않도록 위치 보정
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  const fit = (v, size, max) => Math.max(0, Math.min(v + size > max ? v - size : v, max - size));
+  menu.style.left = fit(clientX, mw, window.innerWidth)  + 'px';
+  menu.style.top  = fit(clientY, mh, window.innerHeight) + 'px';
+}
+// 전체보기면 전체보기 메뉴, 아니면 기존 메뉴
+function openCtxMenu(x, y) {
+  if (!state.pdf) return;
+  hideCtxMenu();
+  if (!isPresenting()) return showCtxMenu(x, y);
+  presentMenu.querySelectorAll('[data-tool]').forEach(el =>
+    el.classList.toggle('active', el.dataset.tool === state.activeTool));
+  placeMenu(presentMenu, x, y);
+}
+
 function showCtxMenu(clientX, clientY) {
   // 복사: select 도구 + 개체 선택 상태일 때만 활성
   $('ctx-copy').classList.toggle('disabled',
@@ -5311,19 +5366,34 @@ function showCtxMenu(clientX, clientY) {
   ctxMenu.style.top  = top  + 'px';
 }
 
-function hideCtxMenu() { ctxMenu.classList.remove('visible'); }
+function hideCtxMenu() { ctxMenu.classList.remove('visible'); presentMenu.classList.remove('visible'); }
 
-// 캔버스 우클릭 → 메뉴 표시
-drawCanvas.addEventListener('contextmenu', e => {
-  if (!state.pdf) return;
-  e.preventDefault();
-  showCtxMenu(e.clientX, e.clientY);
+// 캔버스 우클릭 → 메뉴 표시. 전체보기 중에는 슬라이드 바깥(여백)도 → 전체보기 메뉴
+document.addEventListener('contextmenu', e => {
+  if (e.target.closest('#ctx-menu, #present-menu')) { e.preventDefault(); return; }
+  const onSlide = e.target.closest('#draw-layer');
+  if (state.pdf && (onSlide || (isPresenting() && !e.target.closest('input, textarea, select')))) {
+    e.preventDefault();
+    openCtxMenu(e.clientX, e.clientY);
+  } else hideCtxMenu();
 });
 
 // 바깥 클릭 → 메뉴 닫기
 document.addEventListener('click',       () => hideCtxMenu());
-document.addEventListener('contextmenu', e => {
-  if (!e.target.closest('#ctx-menu') && !e.target.closest('#draw-layer')) hideCtxMenu();
+// 전체화면을 Esc 등으로 빠져나오면 떠 있던 전체보기 메뉴도 닫는다
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) presentMenu.classList.remove('visible'); });
+
+presentMenu.addEventListener('click', e => {
+  const item = e.target.closest('.ctx-item, #pm-capture');
+  if (!item) return;
+  hideCtxMenu();
+  if (item.dataset.tool) { ToolController.applyTool(item.dataset.tool); return; }
+  switch (item.dataset.action) {
+    case 'prev':      goToPage(state.currentPage - 1); break;
+    case 'next':      goToPage(state.currentPage + 1); break;
+    case 'clear-all': $('clear-all-btn').click(); break;
+    case 'exit':      togglePresentation(); break;
+  }
 });
 document.addEventListener('keydown',     e => { if (e.key === 'Escape') hideCtxMenu(); });
 
