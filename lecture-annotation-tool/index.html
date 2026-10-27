@@ -3317,6 +3317,7 @@ const KeyboardHandler = {
       // 검은/흰 화면 중에는 어떤 키를 눌러도 먼저 빠져나온다(빠져나오는 법을 몰라 강의가 멈추지 않게).
       // b·w는 아래 switch에서 토글·전환을 그대로 처리한다.
       if (blankMode && key !== 'b' && key !== 'w') { setBlank(null); e.preventDefault(); return; }
+      if (key === 'Escape' && isCtxMenuOpen()) { hideCtxMenu(); return; }   // 우클릭 메뉴만 닫는다(전체보기 유지)
       switch (key) {
         case 'ArrowLeft':
         case 'ArrowUp':
@@ -5051,11 +5052,37 @@ function htmlBridge() {
     last = c;
     P.postMessage({ lat: 'page', cur: c, total: Math.max(1, slides().length) }, '*');
   }
-  function key(k, code, shift) {
-    var ev = new KeyboardEvent('keydown', { key: k, code: code, shiftKey: !!shift, bubbles: true, cancelable: true });
-    ev.__lat = 1;   // 앱이 돌려준 키 — 아래에서 다시 넘기지 않는다
-    (document.body || document.documentElement).dispatchEvent(ev);
+  var CODES = { ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, ' ': 32, PageUp: 33, PageDown: 34, Enter: 13, Escape: 27 };
+  function key(k, code, shift, up) {
+    // keyCode·which도 채운다 — e.keyCode로 키를 보는 HTML도 알아듣게(합성 이벤트는 기본 0)
+    // up: 쪽 넘기기 때만 keyup도(진짜 키를 넘길 땐 진짜 keyup이 HTML에 그대로 간다)
+    (up ? ['keydown', 'keyup'] : ['keydown']).forEach(function (type) {
+      var ev = new KeyboardEvent(type, { key: k, code: code, shiftKey: !!shift, bubbles: true, cancelable: true });
+      var kc = CODES[k] || (k.length === 1 ? k.toUpperCase().charCodeAt(0) : 0);
+      Object.defineProperty(ev, 'keyCode', { get: function () { return kc; } });
+      Object.defineProperty(ev, 'which',   { get: function () { return kc; } });
+      ev.__lat = 1;   // 앱이 돌려준 키 — 아래에서 다시 넘기지 않는다
+      (document.body || document.documentElement).dispatchEvent(ev);
+    });
   }
+  // 한 쪽 넘기기 — 화살표 → (안 되면) Space/PageUp → 그래도 안 되면 .slide.active를 직접 옮긴다
+  var NEXT = [['ArrowRight', 'ArrowRight'], [' ', 'Space']], PREV = [['ArrowLeft', 'ArrowLeft'], ['PageUp', 'PageUp']];
+  function step(n) {
+    var c = cur(), ks = n > c ? NEXT : PREV;
+    for (var i = 0; i < ks.length; i++) { key(ks[i][0], ks[i][1], false, true); if (cur() !== c) return; }
+    var a = slides(), t = n > c ? c + 1 : c - 1;
+    for (var j = 0; j < a.length; j++) a[j].classList.toggle('active', j === t);
+  }
+  var pres = false;   // 앱이 전체보기 중인지('go'로 받는다)
+  // 전체보기 중 HTML 빈 곳 클릭 = 다음 쪽(PDF와 같은 감각). 버튼·링크 등 누를 것은 HTML 그대로
+  addEventListener('mousedown', function (e) { P.postMessage({ lat: 'down' }, '*'); }, true);
+  addEventListener('click', function (e) {
+    if (!pres || e.button !== 0) return;
+    var t = e.target;
+    if (t && t.closest && t.closest('a,button,input,textarea,select,label,summary,video,audio,[onclick],[role=button],[contenteditable]')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    P.postMessage({ lat: 'nav', d: 1 }, '*');
+  }, true);
   addEventListener('keydown', function (e) {
     if (e.__lat || e.altKey || e.key === 'Tab') return;
     var t = e.target;
@@ -5074,12 +5101,9 @@ function htmlBridge() {
     if (d.lat === 'key') key(d.key, d.code, d.shift);
     else if (d.lat === 'png') snap(d.w);
     else if (d.lat === 'go') {
+      pres = !!d.present;
       var n = Math.max(0, Math.min(d.n - 1, slides().length - 1));
-      for (var g = 0; g < 999 && cur() !== n; g++) {
-        var c = cur(), k = n > c ? 'ArrowRight' : 'ArrowLeft';
-        key(k, k);
-        if (cur() === c) break;   // 움직이지 않는다(쪽 목록이 열림 등) — 그만
-      }
+      for (var g = 0; g < 999 && cur() !== n; g++) step(n);
       last = cur();   // 앱이 옮긴 것 — 되돌려 알리지 않는다
     }
   });
@@ -5138,7 +5162,7 @@ const HtmlView = {
   show(w, h, n) {
     this._frame.style.width = w + 'px';
     this._frame.style.height = h + 'px';
-    this._send({ lat: 'go', n });
+    this._send({ lat: 'go', n, present: isPresenting() });
   },
 
   // 앱이 쓰지 않는 키는 HTML로(Space·Home·End·O 쪽 목록 등)
@@ -5179,6 +5203,11 @@ const HtmlView = {
       if (d.lat === 'fs') togglePresentation();
       else if (d.lat === 'page') this._page(d);
       else if (d.lat === 'png') this._snap?.(d);
+      else if (d.lat === 'down') { this._menuWasOpen = isCtxMenuOpen(); hideCtxMenu(); }
+      else if (d.lat === 'nav') {   // 메뉴를 닫으려고 누른 클릭은 넘기지 않는다
+        if (this._menuWasOpen) this._menuWasOpen = false;
+        else goToPage(state.currentPage + d.d);
+      }
       else if (d.lat === 'ctx') {   // 도구 해제 중 HTML 안 우클릭 — 앱 메뉴를 그 자리에
         const r = this._frame.getBoundingClientRect();
         openCtxMenu(r.left + d.x, r.top + d.y);
@@ -5367,6 +5396,14 @@ function showCtxMenu(clientX, clientY) {
 }
 
 function hideCtxMenu() { ctxMenu.classList.remove('visible'); presentMenu.classList.remove('visible'); }
+function isCtxMenuOpen() { return ctxMenu.classList.contains('visible') || presentMenu.classList.contains('visible'); }
+
+// 메뉴가 떠 있을 때 바깥을 누르면 메뉴만 닫는다 — 그 클릭으로 그리거나 쪽이 넘어가지 않게
+document.addEventListener('mousedown', e => {
+  if (!isCtxMenuOpen() || e.target.closest('#ctx-menu, #present-menu')) return;
+  hideCtxMenu();
+  if (e.target.closest('#draw-layer')) { e.preventDefault(); e.stopPropagation(); }
+}, true);
 
 // 캔버스 우클릭 → 메뉴 표시. 전체보기 중에는 슬라이드 바깥(여백)도 → 전체보기 메뉴
 document.addEventListener('contextmenu', e => {
@@ -5395,7 +5432,6 @@ presentMenu.addEventListener('click', e => {
     case 'exit':      togglePresentation(); break;
   }
 });
-document.addEventListener('keydown',     e => { if (e.key === 'Escape') hideCtxMenu(); });
 
 // 메뉴 항목 클릭 처리
 ctxMenu.addEventListener('click', e => {
