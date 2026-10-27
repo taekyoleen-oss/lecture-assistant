@@ -3410,7 +3410,14 @@ const KeyboardHandler = {
           break;
         // 발표 리모컨의 Enter까지 커버 — 전체보기 여부와 무관하게 다음 페이지
         case 'Enter':
+        case ' ':
+        case 'PageDown':
+        case 'n':
           if (state.pdf) { e.preventDefault(); goToPage(state.currentPage + 1); }
+          break;
+        case 'PageUp':
+        case 'p':
+          if (state.pdf) { e.preventDefault(); goToPage(state.currentPage - 1); }
           break;
         // 앱이 쓰지 않는 키(Space·Home·End·O 쪽 목록 등)는 HTML 슬라이드로
         default: HtmlView.forward(e);
@@ -5040,10 +5047,24 @@ function htmlBridge() {
   function fs() { P.postMessage({ lat: 'fs' }, '*'); return Promise.resolve(); }
   Element.prototype.requestFullscreen = Element.prototype.webkitRequestFullscreen = fs;
   Document.prototype.exitFullscreen = Document.prototype.webkitExitFullscreen = fs;
-  function slides() { return document.querySelectorAll('.slide'); }
+  // 쪽 = .slide. 없으면 카드뉴스처럼 위아래로 스크롤하는 문서의 카드·섹션을 쪽으로 본다
+  function slides() {
+    var sel = ['.slide', 'section.card', '.card', 'section'];
+    for (var i = 0; i < sel.length; i++) { var a = document.querySelectorAll(sel[i]); if (a.length > 1) return a; }
+    return document.querySelectorAll('.slide');
+  }
+  // 스크롤형 = 어느 쪽에도 .active가 없는 문서 — 지금 쪽은 윗부분(화면 위 20%)을 지난 마지막 카드
+  function scrolly(a) {
+    for (var i = 0; i < a.length; i++) if (a[i].classList.contains('active')) return false;
+    return a.length > 1;
+  }
   function cur() {
     var a = slides();
-    for (var i = 0; i < a.length; i++) if (a[i].classList.contains('active')) return i;
+    if (!scrolly(a)) {
+      for (var i = 0; i < a.length; i++) if (a[i].classList.contains('active')) return i;
+      return 0;
+    }
+    for (var j = a.length - 1; j > 0; j--) if (a[j].getBoundingClientRect().top <= innerHeight * 0.2) return j;
     return 0;
   }
   function report() {
@@ -5068,6 +5089,8 @@ function htmlBridge() {
   // 한 쪽 넘기기 — 화살표 → (안 되면) Space/PageUp → 그래도 안 되면 .slide.active를 직접 옮긴다
   var NEXT = [['ArrowRight', 'ArrowRight'], [' ', 'Space']], PREV = [['ArrowLeft', 'ArrowLeft'], ['PageUp', 'PageUp']];
   function step(n) {
+    var a0 = slides();
+    if (scrolly(a0)) { a0[n].scrollIntoView({ block: 'start' }); return; }   // 스크롤형은 그 카드 맨 위(제목)로 바로
     var c = cur(), ks = n > c ? NEXT : PREV;
     for (var i = 0; i < ks.length; i++) { key(ks[i][0], ks[i][1], false, true); if (cur() !== c) return; }
     var a = slides(), t = n > c ? c + 1 : c - 1;
@@ -5103,7 +5126,9 @@ function htmlBridge() {
     else if (d.lat === 'go') {
       pres = !!d.present;
       var n = Math.max(0, Math.min(d.n - 1, slides().length - 1));
-      for (var g = 0; g < 999 && cur() !== n; g++) step(n);
+      // 스크롤형은 한 번만(문서 끝 카드는 맨 위까지 못 올라와 cur()가 n이 안 될 수 있다)
+      if (scrolly(slides())) { if (cur() !== n) step(n); }
+      else for (var g = 0; g < 999 && cur() !== n; g++) step(n);
       last = cur();   // 앱이 옮긴 것 — 되돌려 알리지 않는다
     }
   });
@@ -5129,6 +5154,7 @@ function htmlBridge() {
   }
   document.addEventListener('DOMContentLoaded', function () {
     new MutationObserver(report).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    addEventListener('scroll', report, { passive: true });   // 스크롤형: 휠로 내려도 앱 쪽 번호가 따라간다
     report();
   });
 }
