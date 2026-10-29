@@ -5126,16 +5126,8 @@ function htmlBridge() {
     var m = marked(a), cls = m >= 0 ? a[m].className.match(ON)[2] : 'active';
     for (var j = 0; j < a.length; j++) a[j].classList.toggle(cls, j === t);
   }
-  var pres = false;   // 앱이 전체보기 중인지('go'로 받는다)
-  // 전체보기 중 HTML 빈 곳 클릭 = 다음 쪽(PDF와 같은 감각). 버튼·링크 등 누를 것은 HTML 그대로
+  // 클릭은 HTML 그대로(선택·조작). 쪽 넘김은 Space·Enter·화살표 등 키로만
   addEventListener('mousedown', function (e) { P.postMessage({ lat: 'down' }, '*'); }, true);
-  addEventListener('click', function (e) {
-    if (!pres || e.button !== 0) return;
-    var t = e.target;
-    if (t && t.closest && t.closest('a,button,input,textarea,select,label,summary,video,audio,[onclick],[role=button],[contenteditable]')) return;
-    e.preventDefault(); e.stopImmediatePropagation();
-    P.postMessage({ lat: 'nav', d: 1 }, '*');
-  }, true);
   addEventListener('keydown', function (e) {
     if (e.__lat || e.altKey || e.key === 'Tab') return;
     var t = e.target;
@@ -5154,7 +5146,6 @@ function htmlBridge() {
     if (d.lat === 'key') key(d.key, d.code, d.shift);
     else if (d.lat === 'png') snap(d.w);
     else if (d.lat === 'go') {
-      pres = !!d.present;
       var n = Math.max(0, Math.min(d.n - 1, slides().length - 1));
       var a = slides(), c = cur();
       if (c === n) return;
@@ -5222,7 +5213,7 @@ const HtmlView = {
   show(w, h, n) {
     this._frame.style.width = w + 'px';
     this._frame.style.height = h + 'px';
-    this._send({ lat: 'go', n, present: isPresenting() });
+    this._send({ lat: 'go', n });
   },
 
   // 앱이 쓰지 않는 키는 HTML로(Space·Home·End·O 쪽 목록 등)
@@ -5263,11 +5254,7 @@ const HtmlView = {
       if (d.lat === 'fs') togglePresentation();
       else if (d.lat === 'page') this._page(d);
       else if (d.lat === 'png') this._snap?.(d);
-      else if (d.lat === 'down') { this._menuWasOpen = isCtxMenuOpen(); hideCtxMenu(); }
-      else if (d.lat === 'nav') {   // 메뉴를 닫으려고 누른 클릭은 넘기지 않는다
-        if (this._menuWasOpen) this._menuWasOpen = false;
-        else goToPage(state.currentPage + d.d);
-      }
+      else if (d.lat === 'down') hideCtxMenu();
       else if (d.lat === 'ctx') {   // 도구 해제 중 HTML 안 우클릭 — 앱 메뉴를 그 자리에
         const r = this._frame.getBoundingClientRect();
         openCtxMenu(r.left + d.x, r.top + d.y);
