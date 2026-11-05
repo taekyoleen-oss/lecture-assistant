@@ -4565,7 +4565,7 @@ const Drive = {
       if (this.lib.bad) {
         this.error = '드라이브 목록 파일(library.json)을 읽을 수 없습니다';
         showToast('드라이브 목록 파일(library.json)을 읽을 수 없어 빈 목록으로 표시합니다.', true, 5000);
-      }
+      } else await this.syncPos();
     } catch (e) {
       if (this._token) this.error = '드라이브 목록을 불러오지 못했습니다';
       this.fail(e, '드라이브 목록을 불러오지 못했습니다.');
@@ -4585,6 +4585,36 @@ const Drive = {
       RecentFiles.render();
     };
     return (this._q = this._q.then(run, run));
+  },
+
+  // 저장 위치 상호 반영 — 연결·새로고침 때 이 PC와 드라이브에 함께 있는 강의의 저장 위치(label·page·total)를
+  //   time이 최신인 쪽으로 맞춘다. 저장 위치(saved:true)는 자동 기록(saved:false)보다 늘 우선.
+  //   드라이브 → 이 PC: 이 PC에 이미 있는 항목만 고친다(드라이브 항목을 새로 캐시하지 않는다).
+  //   이 PC → 드라이브: 드라이브에 이미 있는 항목만 고친다(파일 올리기는 ☁ 버튼으로만).
+  async syncPos() {
+    if (!HAS_FSA) return;
+    const local = await RecentFiles._local();
+    const push = [];
+    for (const d of this.lib.entries) {
+      const l = local.find(x => x.id === d.id);
+      if (!l || typeof l.saved !== 'boolean') continue;
+      if (d.saved && (!l.saved || d.time > l.time)) {
+        try { await RecentDB.put({ ...l, label: d.label, page: d.page, total: d.total ?? l.total, time: d.time, saved: true }); }
+        catch (e) { console.warn('sync: local update failed', e); }
+      } else if (l.saved && (!d.saved || l.time > d.time)) push.push(l);
+    }
+    if (!push.length) return;
+    // 기다리지 않는다 — 토큰 재발급(_onToken → refresh) 중에 큐에 걸린 update를 기다리면 서로 막힌다
+    this.update(list => {
+      let n = 0;
+      for (const l of push) {
+        const d = list.find(x => x.id === l.id);
+        if (!d || (d.saved && d.time >= l.time)) continue;   // 그사이 다른 PC가 더 나중에 저장
+        Object.assign(d, { label: l.label, page: l.page, total: l.total ?? d.total, time: l.time, saved: true });
+        n++;
+      }
+      if (!n) return false;
+    }).catch(e => { if (!e.quiet) console.warn('sync: drive update failed', e); });
   },
 
   _upsert(list, e) {
