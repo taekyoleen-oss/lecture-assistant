@@ -1679,7 +1679,8 @@ const PDFRenderer = {
       } else if (state.docs.length > 1) {
         showToast(`PDF ${state.docs.length}개 연결 — 총 ${state.totalPages}페이지`);
       }
-      if (!append) RecentFiles.fillTotal();   // 전체 쪽수가 빠진 저장 항목을 연 김에 채운다(기다리지 않음)
+      // 전체 쪽수가 빠진 저장 항목을 연 김에 채운다(기다리지 않음). HTML은 쪽 수가 자리 잡은 뒤에
+      if (!append) { if (state.docs[0].html) HtmlView.fillLater(); else RecentFiles.fillTotal(); }
       return true;                      // 최근 파일 기록은 성공했을 때만
     } catch (e) {
       loadingOverlay.classList.remove('visible');
@@ -2933,6 +2934,8 @@ const PageScrollRail = {
 // ══════════════════════════════════════════════════════════
 function goToPage(n) {
   if (!state.pdf) return;
+  // HTML은 쪽 수를 늦게 알 수 있다(스크립트로 쪽을 만드는 덱) — 넘친 쪽은 잠시 기억했다가 쪽 수가 늘면 그리로
+  HtmlView._want = state.docs[0]?.html && n > state.totalPages ? { n, until: Date.now() + 10000 } : null;
   const p = Math.max(1, Math.min(n, state.totalPages));
   state.currentPage = p;
   PDFRenderer.showPage(p);
@@ -5082,7 +5085,7 @@ const Drive = {
 //   · 전체화면 요청 → 앱 전체보기 · 키 → 앱으로 넘겨 같은 단축키가 듣게(앱이 안 쓰는 키는 되돌려 받는다)
 //   · 지금 쪽이 바뀌면(.slide.active) 앱에 알림 · 앱이 고른 쪽으로 이동
 function htmlBridge() {
-  var P = parent, last = -2;
+  var P = parent, last = -2, lastN = -1;
   function fs() { P.postMessage({ lat: 'fs' }, '*'); return Promise.resolve(); }
   Element.prototype.requestFullscreen = Element.prototype.webkitRequestFullscreen = fs;
   Document.prototype.exitFullscreen = Document.prototype.webkitExitFullscreen = fs;
@@ -5123,10 +5126,10 @@ function htmlBridge() {
   var quiet = 0;   // 앱이 옮긴 직후(전환 애니메이션 중)에는 알리지 않는다 — 옛 쪽을 알려 되돌아가는 것 방지
   function report() {
     if (Date.now() < quiet) return;
-    var c = cur();
-    if (c === last) return;
-    last = c;
-    P.postMessage({ lat: 'page', cur: c, total: Math.max(1, slides().length) }, '*');
+    var c = cur(), n = Math.max(1, slides().length);
+    if (c === last && n === lastN) return;
+    last = c; lastN = n;
+    P.postMessage({ lat: 'page', cur: c, total: n }, '*');
   }
   var CODES = { ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, ' ': 32, PageUp: 33, PageDown: 34, Enter: 13, Escape: 27 };
   function key(k, code, shift, up) {
@@ -5208,14 +5211,16 @@ function htmlBridge() {
     document.head.appendChild(s);
   }
   document.addEventListener('DOMContentLoaded', function () {
-    new MutationObserver(report).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    // childList: 스크립트가 쪽을 나중에 만드는 덱 — 쪽 수가 늘어난 것도 알린다
+    new MutationObserver(report).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    addEventListener('load', report);
     addEventListener('scroll', report, { passive: true, capture: true });   // 스크롤형: 휠로 내려도(안쪽 상자 스크롤 포함) 쪽 번호가 따라간다
     report();
   });
 }
 
 const HtmlView = {
-  _frame: $('html-frame'), _wait: null, _snap: null,
+  _frame: $('html-frame'), _wait: null, _snap: null, _want: null, _fillT: 0,
 
   isHtml(f) { return /\.html?$/i.test(f.name) || f.type === 'text/html'; },
 
@@ -5235,6 +5240,7 @@ const HtmlView = {
 
   // 덱을 닫거나 다른 파일을 열 때
   reset() {
+    this._want = null;
     document.body.classList.remove('html-deck');
     if (this._frame.srcdoc) this._frame.srcdoc = '';   // 그 HTML의 스크립트·소리를 멈춘다
   },
@@ -5273,8 +5279,16 @@ const HtmlView = {
     if (this._wait) { this._wait(d.total); return; }
     const doc = state.docs[0];
     if (!doc || !doc.html) return;
-    if (d.total !== doc.numPages) { doc.numPages = d.total; Deck.recount(); updatePageUI(); }
+    if (d.total !== doc.numPages) { doc.numPages = d.total; Deck.recount(); updatePageUI(); this.fillLater(); }
+    const w = this._want;
+    if (w && Date.now() < w.until) { if (w.n <= state.totalPages) goToPage(w.n); return; }   // 저장 쪽으로 여는 중
     if (d.cur + 1 !== state.currentPage) goToPage(d.cur + 1);
+  },
+
+  // 저장 항목의 전체 쪽수 채우기 — 쪽 수가 더 바뀌지 않을 때(늦게 만든 쪽의 1쪽짜리 값을 저장하지 않게)
+  fillLater() {
+    clearTimeout(this._fillT);
+    this._fillT = setTimeout(() => { if (state.docs[0]?.html) RecentFiles.fillTotal(); }, 1500);
   },
 
   init() {
