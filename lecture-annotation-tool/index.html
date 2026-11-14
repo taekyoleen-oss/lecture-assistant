@@ -204,6 +204,15 @@
     }
     #idle-timer-btn:hover { background: var(--tool-hover); color: var(--text); }
     #idle-timer-btn.active { color: #3B82F6; border-color: #3B82F6; }
+    /* 쉬는 시간 타이머 — 마치는 시각 바로 아래, 같은 모양 */
+    #idle-break-btn {
+      position: fixed; top: 44px; right: 16px;
+      font-family: inherit; font-size: 12px;
+      color: var(--text-muted); background: transparent;
+      border: 1px solid var(--border2); border-radius: 6px;
+      padding: 3px 10px; cursor: pointer;
+    }
+    #idle-break-btn:hover { background: var(--tool-hover); color: var(--text); }
     /* 좁은 화면에서는 드롭존과 겹칠 수 있어 숨긴다 */
     @media (max-width: 780px) { #app-title { display: none; } }
     @media (prefers-reduced-motion: reduce) { #app-title span { animation: none; opacity: 0.85; } }
@@ -665,6 +674,16 @@
     body.html-deck #add-pdf-btn { display: none; }
 
     /* ── 검은 / 흰 화면 오버레이 ───────────────────────────── */
+    /* 쉬는 시간 타이머(break-timer.html) — 화면 전체를 덮는다. 검은 화면(9000)보다 위 */
+    #break-overlay { position: fixed; inset: 0; z-index: 9500; display: none; background: #fdfdfd; }
+    #break-overlay.visible { display: block; }
+    #break-overlay iframe { width: 100%; height: 100%; border: 0; display: block; }
+    #break-close {
+      position: absolute; right: 14px; bottom: 14px;
+      font: 12px inherit; font-family: inherit; color: #828282; background: transparent;
+      border: 1px solid #d0d0d0; border-radius: 6px; padding: 3px 10px; cursor: pointer; opacity: .55;
+    }
+    #break-close:hover { opacity: 1; color: #000; }
     #blank-overlay {
       position: fixed; inset: 0;
       z-index: 9000;
@@ -720,7 +739,7 @@
       justify-content: center;
     }
     /* 툴바 SVG 아이콘 — currentColor 상속(활성/호버 색 자동 반영) */
-    .tool-btn svg, .util-btn svg, #timer-btn svg, #blank-btn svg,
+    .tool-btn svg, .util-btn svg, #timer-btn svg, #break-btn svg, #blank-btn svg,
     .clear-btn svg, #clear-all-btn svg {
       width: 21px; height: 21px;
       display: block;
@@ -1120,6 +1139,7 @@
   <div id="app-title" role="img" aria-label="Lecture Assistant"></div>
   <!-- 첫 화면에서도 마치는 시각을 설정·닫을 수 있게(오른쪽 툴바는 파일을 연 뒤에만 보인다) -->
   <button id="idle-timer-btn" title="마치는 시각 타이머 (T) — 5분 전부터 남은 시간 표시">⏱ 마치는 시각</button>
+  <button id="idle-break-btn" title="쉬는 시간 타이머 (R) — 전체화면, 기본 15분">☕ 쉬는 시간</button>
   <div id="drop-zone">
     <div class="icon">📄</div>
     <div class="label">PDF·HTML 파일을 드래그하거나 클릭해서 선택하세요</div>
@@ -1219,6 +1239,7 @@
       <button id="theme-toggle" title="라이트 / 다크 전환">🌙</button>
       <!-- 강의 타이머 · 검은화면 -->
       <button id="timer-btn" title="마치는 시각 타이머 (T) — 5분 전부터 남은 시간 표시"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 2.5h6"/></svg></button>
+      <button id="break-btn" title="쉬는 시간 타이머 (R) — 전체화면, 기본 15분"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8 3v3M12 3v3"/></svg></button>
       <button id="blank-btn" title="검은 화면 (B) · 흰 화면 (W)"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="5" width="18" height="14" rx="2"/></svg></button>
 
       <div class="toolbar-sep"></div>
@@ -1425,6 +1446,8 @@
 
 <!-- 검은 / 흰 화면 오버레이 (B / W) -->
 <div id="blank-overlay" title="아무 곳이나 클릭하면 닫힙니다"></div>
+<!-- 쉬는 시간 타이머 — 열 때만 iframe을 붙이고 닫으면 떼어 낸다(소리·타이머가 남지 않게) -->
+<div id="break-overlay"><button id="break-close" title="타이머 닫기">✕ 닫기</button></div>
 
 <script>
 // 배포 버전 — 콘솔과 IDLE 화면 하단에 같이 찍어 구버전 캐시/스테일 탭을 즉시 판별한다
@@ -2382,6 +2405,35 @@ function laserLoop() {
 
 function startLaser() { if (!laserRAF) laserRAF = requestAnimationFrame(laserLoop); }
 function stopLaser()  { laserTrail = []; laserCtx.clearRect(0,0,laserCanvas.width,laserCanvas.height); }
+
+// ══════════════════════════════════════════════════════════
+// 쉬는 시간 타이머 (R) — break-timer.html(motion-template-timer 원본, 기본 15분)을 화면 전체에 띄운다.
+// 이미 전체화면(전체보기)이면 덮기만 하고, 아니면 덮개를 전체화면으로 올렸다가 닫을 때 되돌린다.
+const BreakTimer = {
+  el: $('break-overlay'), ownFs: false,
+  open() {
+    if (this.el.classList.contains('visible')) return;
+    const f = document.createElement('iframe');
+    f.src = 'break-timer.html'; f.title = '쉬는 시간 타이머'; f.allow = 'fullscreen';
+    f.onload = () => f.contentWindow.focus();   // 바로 숫자 입력·Enter가 듣게
+    this.el.prepend(f);
+    this.el.classList.add('visible');
+    if (!document.fullscreenElement && this.el.requestFullscreen) {
+      this.ownFs = true;
+      this.el.requestFullscreen().catch(() => { this.ownFs = false; });
+    }
+  },
+  close() {
+    if (!this.el.classList.contains('visible')) return;
+    this.el.querySelector('iframe')?.remove();
+    this.el.classList.remove('visible');
+    if (this.ownFs && document.fullscreenElement === this.el) document.exitFullscreen().catch(() => {});
+    this.ownFs = false;
+  },
+};
+$('break-btn').addEventListener('click', () => BreakTimer.open());
+$('idle-break-btn').addEventListener('click', () => BreakTimer.open());
+$('break-close').addEventListener('click', () => BreakTimer.close());
 
 // ══════════════════════════════════════════════════════════
 // 검은 / 흰 화면 (B / W) — 청중 주의를 발표자로 돌리거나 임시 화이트보드
@@ -3378,6 +3430,7 @@ const KeyboardHandler = {
         case 'b': case 'B': setBlank('black'); e.preventDefault(); break;
         case 'w': case 'W': setBlank('white'); e.preventDefault(); break;
         case 't': case 'T': EndTime.toggle();             break;
+        case 'r': case 'R': if (!e.ctrlKey && !e.metaKey) { e.preventDefault(); BreakTimer.open(); } break;
         case 'z': case 'Z':
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
