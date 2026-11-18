@@ -430,10 +430,11 @@
        고정 푸터(37px) 위 오른쪽 아래. 클릭을 막지 않게 pointer-events 끔 */
     #idle-mascot {
       position: fixed; right: 16px; bottom: 83px;
-      width: 96px; height: 96px; border-radius: 50%;   /* 전신 최소 높이 96px(브랜드 규칙) */
-      background: #FAFAF7; border: 1px solid #E5E3DC;
+      width: 96px; height: 96px;   /* 전신 최소 높이 96px(브랜드 규칙) */
       pointer-events: none;
     }
+    /* 원 테두리 없이 둔다. 어두운 테마에서만 남색 정장이 묻히지 않게 크림 원을 깐다(브랜드 규칙) */
+    [data-theme="dark"] #idle-mascot { border-radius: 50%; background: #FAFAF7; }
     /* 라이거 아래 tk 브랜드 마크 — 원본 svg/01(밝은 테마)·02(어두운 테마) 그대로 */
     #idle-brand {
       position: fixed; right: 46px; bottom: 45px;
