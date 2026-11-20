@@ -435,6 +435,8 @@
     }
     /* 원 테두리 없이 둔다. 어두운 테마에서만 남색 정장이 묻히지 않게 크림 원을 깐다(브랜드 규칙) */
     [data-theme="dark"] #idle-mascot { border-radius: 50%; background: #FAFAF7; }
+    /* 모바일(좁은 화면·가로로 눕힌 폰)에서는 라이거를 숨기고 tk 마크만 오른쪽 끝에 둔다 */
+    @media (max-width: 780px), (max-height: 500px) { #idle-mascot { display: none; } #idle-brand { right: 16px; } }
     /* 라이거 아래 tk 브랜드 마크 — 원본 svg/01(밝은 테마)·02(어두운 테마) 그대로 */
     #idle-brand {
       position: fixed; right: 126px; bottom: 45px;
